@@ -67,6 +67,8 @@ export interface Song {
   readonly weeksOut: number
   readonly trajectory: Trajectory
   readonly earnings: number
+  /** §6: a song made in a band is the band's, and its money splits. */
+  readonly writtenWithBand: boolean
 }
 
 /** §7's lifecycle: spike-and-decay by default, with two named exceptions. */
@@ -86,6 +88,7 @@ export const newSong = (id: number, title: string, genreId: string, themes: read
   weeksOut: 0,
   trajectory: 'normal',
   earnings: 0,
+  writtenWithBand: false,
 })
 
 export const genreOf = (song: Song): Genre =>

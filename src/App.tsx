@@ -73,8 +73,8 @@ function Title({ onStart }: { onStart: () => void }) {
         </div>
         <p className="status">
           <span className="dot" aria-hidden="true" />
-          Pre-alpha — author a musician, plan your weeks, write songs, put them out, and play them
-          to a room. Bands aren&apos;t built, and nothing is saved.
+          Pre-alpha — author a musician, plan your weeks, write songs, put them out, play them to a
+          room, and find (or wreck) a band. Nothing is saved.
         </p>
       </header>
 

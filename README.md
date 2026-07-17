@@ -11,9 +11,9 @@ not an idle clicker.
 
 ## Status
 
-**Pre-alpha, and playable.** Author a musician, plan your weeks, write songs and put them out. The
-design document is complete and remains the source of truth; three of its eighteen systems are
-built. Nothing is saved.
+**Pre-alpha, and playable.** Author a musician, plan your weeks, write songs, put them out, play them
+to a room, and find (or wreck) a band. The design document is complete and remains the source of
+truth; six of its eighteen systems are built. Nothing is saved.
 
 | | |
 | --- | --- |
@@ -25,8 +25,9 @@ built. Nothing is saved.
 | ✅ | **Songwriting & release (§7)** — author a song, write it, record it, put it out |
 | ✅ | **Fame (§4)** — Following vs Cred, the purist/populist fork, selling out and backlash |
 | ✅ | **Live gigs (§9)** — book a room, craft a set, play it; pacing, persona, disasters |
-| ⏳ | §8 The Band — the richest system left, and the other half of §7 and §9 |
-| ⏳ | Everything else |
+| ✅ | **The band (§8)** — full agents, multi-faceted chemistry, the trap, emergent leadership |
+| ⏳ | §12 the fail state, §16 the events engine, §10 gear, §13 merch, §14 superfans, §15 awards |
+| ⏳ | §17 the macro ladder — the arc above all of it |
 
 The interview is **seven questions**. §2 rejects a five-question version as too shallow, so five is
 the floor; seven is AJ's call. The five topics the brief names by hand are fixed and not up for
@@ -130,6 +131,45 @@ your career, and once it's settled (six nights) a choice that breaks it is an ev
 delightful or alienating, depending on whether the room wanted it.
 
 Gear is deliberately not read here. §9 is explicit: it's the player, not the gear.
+
+### The band (§8)
+
+The brief calls it the richest system in the game, and three of its lines are load-bearing:
+
+**Bandmates are full agents — "basically another you".** Same shape as the player: fixed traits, fixed
+leanings, talents, plus an agenda they act on. Their leanings matter as much as yours — §3's genre
+mismatch runs both ways, so writing music your guitarist has no feeling for costs you their respect,
+however good the song is.
+
+**Chemistry is multi-faceted and must stay that way.** Musical respect, personal friendship and
+professional trust move *independently*, so you can be "loved and disrespected, or trusted by someone
+who can't stand you". **Never average them into one bar** — the contradictions are the whole point,
+and they only read as a person in a sentence:
+
+> *"Joss thinks you are the real thing and would not cross the road for you."*
+> *"Joss likes you enormously and does not rate you at all."*
+> *"Joss is fond of you and has stopped expecting you to turn up."*
+
+**A bad band is a trap.** Low chemistry doesn't fail to help — it drags your songs *below* your solo
+ceiling. Measured against a solo ceiling of 0.73:
+
+| Chemistry | Band ceiling | vs solo |
+| --- | --- | --- |
+| 0.00 | 0.38 | **−48%** — stifled |
+| 0.35 | 0.54 | −25% |
+| 0.65 | 0.69 | −5% |
+| 0.80 | 0.76 | +5% |
+| 1.00 | 0.85 | +18% |
+
+Note the band ceiling pools *everyone's* writing, so `bandFactor` alone doesn't tell you whether the
+band helps — a room of weak writers can sit above factor 1.0 and still leave you worse off.
+`describeBandWorth` compares the real ceilings for exactly this reason; it once read from the factor
+and told players the band was helping while their ceiling was down 5%.
+
+**Leadership is emergent.** Founding buys pull (0.7) not ownership; joining starts you at 0.25.
+Standing follows chemistry slowly — taking over a band you joined is a career-length arc, ~10–15
+weeks, not a month. You can be pushed out on a trust/standing threshold, and members quit when
+nothing is keeping them.
 
 ### How a day reads
 

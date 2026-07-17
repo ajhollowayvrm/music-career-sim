@@ -78,6 +78,14 @@ Clicking through the interview one tool call at a time is slow. `browser_evaluat
 '.standing-gap'                    // the reach-vs-respect gap line (§6)
 '.backlash'                        // a release that read as selling out
 
+// The band (§8)
+'.band'                            // the panel
+'.song-card .song-read'            // a member's read on you (prose, never bars)
+'.mate-agenda'                     // what they're in it for
+'.demand-text'                     // someone waiting on an answer
+'.band-news'                       // quits, being pushed out
+'.standing-cred'                   // your pull, in prose
+
 // Gigs (§9)
 '.venue' / '.venue-day'            // a room; its day buttons (booking)
 '.venue-locked'                    // why a room won't have you
@@ -137,6 +145,25 @@ block**, and that the count it warns with is the count the week delivers. Plan a
 2 music, 2 rest) and confirm no warning. Check the day reports carry a self-read clause that varies
 with the character's Confidence — that's §3's perception filter, and it's the thing most likely to
 silently stop working.
+
+### After touching the band (§8)
+
+Two things must hold, and both are invisible from the UI:
+
+- **A bad band writes WORSE than solo.** Probe `bandCompositionCeiling` against `compositionCeiling`
+  across chemistry 0..1. Low chemistry must come out below the solo ceiling — if it only fails to
+  help, the trap is gone and "solo vs band" stops being a decision.
+- **`describeBandWorth` compares real CEILINGS, not `bandFactor`.** They're different questions: the
+  factor multiplies the pooled writing, so a band of weak writers sits above factor 1.0 while
+  leaving you worse off. It shipped reading the factor once and told players the band was helping
+  while their ceiling was down 5%.
+
+Driving it: recruit someone, then rehearse ~4 weeks. The member's read must visibly move
+(`still working you out` → `knows you will be there` → `rates you` → `all in`). If it doesn't,
+`describeMate` has a gap — chemistry moved and the prose has no case for it, which is silent because
+pillar 2 means there's no number to watch instead.
+
+**Never add a chemistry bar.** The facets only read as a person in a sentence.
 
 ### After touching gigs (§9)
 

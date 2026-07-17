@@ -9,6 +9,7 @@ import WeekSummary from './WeekSummary.tsx'
 import SongsPanel from './SongsPanel.tsx'
 import GigsPanel from './GigsPanel.tsx'
 import GigNight from './GigNight.tsx'
+import BandPanel from './BandPanel.tsx'
 
 interface Props {
   character: Character
@@ -16,7 +17,7 @@ interface Props {
   onQuit: () => void
 }
 
-type Tab = 'week' | 'songs' | 'gigs'
+type Tab = 'week' | 'songs' | 'gigs' | 'band'
 
 /** §5 The Daily Loop: plan a week, watch it happen a day at a time, settle up. */
 export default function CareerLoop({ character, seed, onQuit }: Props) {
@@ -82,6 +83,18 @@ export default function CareerLoop({ character, seed, onQuit }: Props) {
             Rooms
             {state.booking && <span className="tab-badge">1</span>}
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'band'}
+            className={`tab${tab === 'band' ? ' is-active' : ''}`}
+            onClick={() => setTab('band')}
+          >
+            Band
+            {/* A demand is someone waiting on an answer — it shouldn't be
+                findable only by chance. */}
+            {state.demand && <span className="tab-badge is-urgent">!</span>}
+          </button>
         </div>
       )}
 
@@ -91,6 +104,9 @@ export default function CareerLoop({ character, seed, onQuit }: Props) {
           <SongsPanel state={state} character={character} dispatch={dispatch} />
         )}
         {planning && tab === 'gigs' && <GigsPanel state={state} dispatch={dispatch} />}
+        {planning && tab === 'band' && (
+          <BandPanel state={state} character={character} dispatch={dispatch} />
+        )}
         {state.phase === 'resolving' && (
           <DayResolve
             state={state}

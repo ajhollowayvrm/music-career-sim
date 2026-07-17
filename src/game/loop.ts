@@ -38,6 +38,21 @@ import {
   rollBacklash,
 } from './fame.ts'
 import { clamp } from './traits.ts'
+import { genreOf } from './songs.ts'
+import { makeBandmate, makeBandmates, type Bandmate } from './bandmates.ts'
+import {
+  bandChemistry,
+  bandCompositionCeiling,
+  mateFit,
+  nudgeAll,
+  nudgeOne,
+  pushedOut,
+  startingChemistry,
+  startingStanding,
+  willQuit,
+  type Band,
+  type Chemistry,
+} from './band.ts'
 import { NIGHTLY_RECOVERY } from './week.ts'
 import { VENUES, canPlay, venueById, type Venue } from './venues.ts'
 import {
@@ -123,7 +138,33 @@ export interface LoopState {
   readonly lastBacklash: readonly string[]
   /** The gig just played, for the week summary. */
   readonly lastGig: { readonly venueName: string; readonly result: GigResult } | null
+  /** §8. The band, if you're in one. */
+  readonly band: Band | null
+  /** Bands looking for someone — what 'apply for bands' days turn up (§5). */
+  readonly bandOffers: readonly BandOffer[]
+  /** People who'd join the band you founded. */
+  readonly recruits: readonly Bandmate[]
+  readonly nextMateId: number
+  /** §8: they make demands. One at a time, waiting on an answer. */
+  readonly demand: Demand | null
+  /** Things the band did this week, for the summary. */
+  readonly bandNews: readonly string[]
   readonly rng: Rng
+}
+
+/** An existing band that would have you. §8: you can join and rise. */
+export interface BandOffer {
+  readonly id: number
+  readonly name: string
+  readonly members: readonly Bandmate[]
+}
+
+/** §8: "they can make demands, act on their own, and quit." */
+export interface Demand {
+  readonly mateId: number
+  readonly text: string
+  readonly acceptText: string
+  readonly refuseText: string
 }
 
 export function initialLoopState(seed: number): LoopState {
@@ -149,9 +190,22 @@ export function initialLoopState(seed: number): LoopState {
     lastFollowingGain: 0,
     lastBacklash: [],
     lastGig: null,
+    band: null,
+    bandOffers: [],
+    recruits: [],
+    nextMateId: 1,
+    demand: null,
+    bandNews: [],
     rng: makeRng(seed),
   }
 }
+
+/** How many ways the money splits. §6: a band shares it. */
+export const shareCount = (state: LoopState): number =>
+  state.band ? state.band.members.length + 1 : 1
+
+export const splitMoney = (state: LoopState, amount: number): number =>
+  Math.round(amount / shareCount(state))
 
 export const songById = (state: LoopState, id: number | null): Song | undefined =>
   id === null ? undefined : state.songs.find((s) => s.id === id)
@@ -188,6 +242,12 @@ export type LoopAction =
   | { type: 'gigChoose'; choiceId: string }
   | { type: 'gigHandle'; handlingId: string }
   | { type: 'finishGig' }
+  // §8
+  | { type: 'foundBand'; name: string }
+  | { type: 'joinBand'; offerId: number }
+  | { type: 'recruit'; mateId: number }
+  | { type: 'leaveBand' }
+  | { type: 'answerDemand'; accept: boolean }
 
 export function loopReducer(state: LoopState, action: LoopAction): LoopState {
   switch (action.type) {
@@ -245,9 +305,16 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         songs = state.songs.map((s) => {
           if (s.id !== song.id) return s
           if (s.phase === 'writing') {
+            // §8's trap: with a band, the ceiling is the BAND's — which is above
+            // your solo ceiling when the chemistry is there and below it when it
+            // isn't. A bad band doesn't fail to help; it stifles you.
+            const ceiling =
+              state.band && state.band.members.length > 0
+                ? bandCompositionCeiling(action.character, state.band)
+                : compositionCeiling(action.character)
             return {
               ...s,
-              composition: s.composition + sessionGain(s.composition, compositionCeiling(action.character), result.quality),
+              composition: s.composition + sessionGain(s.composition, ceiling, result.quality),
               writingSessions: s.writingSessions + 1,
             }
           }
@@ -259,15 +326,65 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         })
       }
 
+      // §8 — what the day did to the people around you.
+      let band = state.band
+      let bandOffers = state.bandOffers
+      let recruits = state.recruits
+      let nextMateId = state.nextMateId
+      let rngAfter = rng
+
+      if (routeId === 'apply_bands' && !result.burntOut) {
+        // §5's 'apply for bands' finally pays out. What turns up depends on
+        // whether you have a room of your own: with a band you founded, people
+        // answer YOUR ad; without one, you answer theirs.
+        const found = rollBandContacts(state, result.quality, rngAfter, nextMateId)
+        bandOffers = found.offers
+        recruits = found.recruits
+        nextMateId = found.nextMateId
+        rngAfter = found.rng
+      }
+
+      if (band && band.members.length > 0 && !result.burntOut) {
+        if (routeId === 'rehearse') {
+          // Turning up and doing the work buys trust and respect. It does not
+          // make anyone like you — that's the facets being independent (§8).
+          band = nudgeAll(band, {
+            professionalTrust: 0.05 + result.quality * 0.04,
+            musicalRespect: result.quality * 0.05,
+            friendship: 0.015,
+          })
+        }
+        if (routeId === 'make_music' && song) {
+          // §3's mismatch, from their side: writing music a member has no
+          // feeling for costs you their respect, however good it is.
+          const axes = genreOf(song).axes as unknown as Record<string, number>
+          for (const m of band.members) {
+            const fit = mateFit(m, axes)
+            band = nudgeOne(band, m.id, {
+              musicalRespect: (fit - 0.5) * 0.06,
+              friendship: (fit - 0.55) * 0.03,
+            })
+          }
+        }
+        if (routeId === 'day_job' || routeId === 'creator') {
+          // Days you spend being someone other than this band's member. They notice.
+          band = nudgeAll(band, { professionalTrust: -0.012 })
+        }
+      }
+
       // Resolving a day never ends the week. It used to, and that silently ate
       // Sunday: the seventh day resolved and the screen flipped to the summary
       // in the same tick, so its report was never read. Closing the week is
       // 'finishWeek', which the player asks for once they've seen all seven.
       return {
         ...state,
-        rng,
+        rng: rngAfter,
         days: [...state.days, result],
         songs,
+        band,
+        bandOffers,
+        recruits,
+        nextMateId,
         energy: result.energyAfter,
         mood: result.moodAfter,
         money: state.money + result.moneyDelta,
@@ -278,11 +395,11 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
 
     case 'finishWeek': {
       if (state.phase !== 'resolving' || state.days.length < DAYS_IN_WEEK) return state
+      const rngHere = state.rng
 
       // The catalog pays, then the bills land. Income arrives in dribs against a
       // lump sum — that squeeze is §12's whole point.
-      const catalogEarnings = state.songs.reduce((sum, s) => sum + weeklyEarning(s), 0)
-
+      
       // §4: what's out in the world also brings reach and standing, and which of
       // the two depends on where the song sits on the underground↔mainstream
       // axis. Mainstream reaches further; underground earns respect. Same songs,
@@ -296,16 +413,27 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
           : s,
       )
 
+      // §6: a band shares the money. Songs written in the band are the band's.
+      const bandShare = shareCount(state)
+      const myCatalog = state.songs.reduce(
+        (sum, s) => sum + Math.round(weeklyEarning(s) / (s.writtenWithBand ? bandShare : 1)),
+        0,
+      )
+
+      // §8 — the weekly pass over the people. They act on their own.
+      const after = runBandWeek(state, rngHere)
+
       return {
-        ...state,
+        ...after.state,
         songs: aged,
         phase: 'summary',
-        money: state.money + catalogEarnings - COST_OF_LIVING,
+        money: state.money + myCatalog - COST_OF_LIVING,
         lastCostOfLiving: COST_OF_LIVING,
-        lastCatalogEarnings: catalogEarnings,
+        lastCatalogEarnings: myCatalog,
         following: state.following + followingGain,
         cred: clamp(state.cred + credGain, 0, 1),
         lastFollowingGain: followingGain + state.days.reduce((s, d) => s + d.followingDelta, 0),
+        rng: after.rng,
       }
     }
 
@@ -330,7 +458,13 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
     case 'startSong': {
       if (state.phase !== 'planning') return state
       if (!action.title.trim()) return state
-      const song = newSong(state.nextSongId, action.title, action.genreId, action.themes)
+      // §6: songs made in a band are the band's, and the money splits. Fixed at
+      // the start — a song begun alone stays yours even if you join next week.
+      const withBand = !!state.band && state.band.members.length > 0
+      const song = {
+        ...newSong(state.nextSongId, action.title, action.genreId, action.themes),
+        writtenWithBand: withBand,
+      }
       return {
         ...state,
         songs: [...state.songs, song],
@@ -398,6 +532,97 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         ...state,
         songs: state.songs.filter((s) => s.id !== song.id),
         activeSongId: state.activeSongId === song.id ? null : state.activeSongId,
+      }
+    }
+
+    /* ---- §8 The Band ------------------------------------------------- */
+
+    case 'foundBand': {
+      if (state.phase !== 'planning' || state.band || !action.name.trim()) return state
+      // §8: founding buys you pull, not the band. It can still be taken off you.
+      return {
+        ...state,
+        band: {
+          name: action.name.trim(),
+          members: [],
+          chemistry: {},
+          standing: startingStanding(true),
+          founded: true,
+          weeksTogether: 0,
+        },
+      }
+    }
+
+    case 'joinBand': {
+      if (state.phase !== 'planning' || state.band) return state
+      const offer = state.bandOffers.find((o) => o.id === action.offerId)
+      if (!offer) return state
+
+      const chemistry: Record<number, Chemistry> = {}
+      for (const m of offer.members) chemistry[m.id] = startingChemistry(false)
+
+      return {
+        ...state,
+        band: {
+          name: offer.name,
+          members: [...offer.members],
+          chemistry,
+          // You're the new one. You have not proved anything yet (§8).
+          standing: startingStanding(false),
+          founded: false,
+          weeksTogether: 0,
+        },
+        bandOffers: [],
+        bandNews: [`You are in ${offer.name} now. Nobody in it owes you anything yet.`],
+      }
+    }
+
+    case 'recruit': {
+      if (state.phase !== 'planning' || !state.band) return state
+      const mate = state.recruits.find((m) => m.id === action.mateId)
+      if (!mate || state.band.members.length >= 4) return state
+      return {
+        ...state,
+        band: {
+          ...state.band,
+          members: [...state.band.members, mate],
+          chemistry: { ...state.band.chemistry, [mate.id]: startingChemistry(true) },
+        },
+        recruits: state.recruits.filter((m) => m.id !== mate.id),
+      }
+    }
+
+    case 'leaveBand':
+      if (state.phase !== 'planning' || !state.band) return state
+      return {
+        ...state,
+        band: null,
+        demand: null,
+        bandNews: [`You are out of ${state.band.name}. Back to the bedroom.`],
+      }
+
+    case 'answerDemand': {
+      const demand = state.demand
+      if (!demand || !state.band) return state
+      const band = action.accept
+        ? // Giving them what they want costs you the room's sense that you drive
+          // it — you did what you were told.
+          nudgeOne(
+            { ...state.band, standing: clamp(state.band.standing - 0.06, 0, 1) },
+            demand.mateId,
+            { friendship: 0.12, musicalRespect: 0.05, professionalTrust: 0.08 },
+          )
+        : // Refusing holds your pull and costs you the person.
+          nudgeOne(
+            { ...state.band, standing: clamp(state.band.standing + 0.05, 0, 1) },
+            demand.mateId,
+            { friendship: -0.16, professionalTrust: -0.06 },
+          )
+      return {
+        ...state,
+        band,
+        demand: null,
+        bandNews: [...state.bandNews, action.accept ? demand.acceptText : demand.refuseText],
       }
     }
 
@@ -531,7 +756,13 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       const gig = state.gig
       if (!gig || gig.stage !== 'result') return state
       const venue = venueById(gig.venueId)
-      const { result, rng } = settleGig(venue, gig.curve, 0, state.rng)
+      const settled = settleGig(venue, gig.curve, 0, state.rng)
+      const rng = settled.rng
+      // §6: the band splits the door.
+      const result: GigResult = {
+        ...settled.result,
+        money: splitMoney(state, settled.result.money),
+      }
 
       // The gig IS the day — it takes the energy any other day would.
       const energyAfter = clamp(state.energy - GIG_ENERGY + NIGHTLY_RECOVERY, 0, 100)
@@ -567,6 +798,175 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         lastGig: { venueName: venue.name, result },
       }
     }
+  }
+}
+
+const BAND_NAMES = [
+  'Weekend Vacancy', 'The Long Way Round', 'Sundials', 'Cheap Rent',
+  'Motorlight', 'The Undersigned', 'Petrol Blue', 'Nine Tenths',
+]
+
+/**
+ * What a day of answering ads turns up — §5's 'apply for bands' route paying out
+ * into §8.
+ *
+ * Which way it goes depends on whether you have a room of your own: found a band
+ * and people answer YOUR ad; otherwise you answer theirs. Reach helps either
+ * way, because §6 is explicit that a following is leverage "for founding or
+ * leading your OWN band".
+ */
+function rollBandContacts(
+  state: LoopState,
+  quality: number,
+  rng: Rng,
+  nextMateId: number,
+): { offers: readonly BandOffer[]; recruits: readonly Bandmate[]; nextMateId: number; rng: Rng } {
+  const reach = clamp(Math.log10(Math.max(1, state.following)) / 4, 0, 1)
+  const roll = next(rng)
+  const chance = 0.35 + quality * 0.3 + reach * 0.2
+
+  if (roll.value > chance) {
+    return { offers: state.bandOffers, recruits: state.recruits, nextMateId, rng: roll.rng }
+  }
+
+  // You have a band: someone wants in.
+  if (state.band) {
+    if (state.band.members.length >= 4) {
+      return { offers: state.bandOffers, recruits: state.recruits, nextMateId, rng: roll.rng }
+    }
+    const made = makeBandmate(nextMateId, roll.rng)
+    return {
+      offers: state.bandOffers,
+      recruits: [...state.recruits, made.mate],
+      nextMateId: nextMateId + 1,
+      rng: made.rng,
+    }
+  }
+
+  // No band: an existing one would have you.
+  const sizeRoll = nextRange(roll.rng, 2, 3.99)
+  const made = makeBandmates(Math.floor(sizeRoll.value), nextMateId, sizeRoll.rng)
+  const nameRoll = nextRange(made.rng, 0, BAND_NAMES.length)
+  const name = BAND_NAMES[Math.floor(nameRoll.value)] ?? 'The Band'
+
+  return {
+    offers: [
+      ...state.bandOffers,
+      { id: nextMateId, name, members: made.mates },
+    ],
+    recruits: state.recruits,
+    nextMateId: nextMateId + made.mates.length,
+    rng: nameRoll.rng,
+  }
+}
+
+/**
+ * The weekly pass over the band — §8: "they can make demands, act on their own,
+ * and quit."
+ *
+ * This is where they stop being a stat block. Chemistry drifts, someone walks,
+ * you get pushed out, or someone asks for the thing their agenda has wanted all
+ * along.
+ */
+function runBandWeek(state: LoopState, rng: Rng): { state: LoopState; rng: Rng } {
+  let band = state.band
+  if (!band) return { state, rng }
+
+  const news: string[] = [...state.bandNews]
+  let r = rng
+
+  band = { ...band, weeksTogether: band.weeksTogether + 1 }
+
+  // Standing follows chemistry: the room gives the say to whoever it rates. §8's
+  // emergent leadership — you can join and rise, or found and lose it.
+  //
+  // Slow on purpose: taking over a band you joined should be a career-length arc,
+  // not a month. At this rate a well-liked newcomer needs ~10-15 weeks to go from
+  // "not driving it" to having a real say, and a founder has to be genuinely bad
+  // for a long time to lose the room.
+  const chem = bandChemistry(band)
+  band = { ...band, standing: clamp(band.standing + (chem - 0.5) * 0.12, 0, 1) }
+
+  // §8: pushed out on a relationship/reliability threshold.
+  if (pushedOut(band)) {
+    return {
+      state: {
+        ...state,
+        band: null,
+        demand: null,
+        bandNews: [
+          ...news,
+          `${band.name} had a conversation without you in it. You are not in ${band.name} any more.`,
+        ],
+      },
+      rng: r,
+    }
+  }
+
+  // Somebody walks.
+  const leaving = band.members.find((m) => willQuit(band!, m))
+  if (leaving) {
+    const rest = band.members.filter((m) => m.id !== leaving.id)
+    news.push(`${leaving.name} has quit. Nothing was keeping them.`)
+    band = { ...band, members: rest }
+  }
+
+  // Somebody wants something. One at a time — a queue of demands is a to-do
+  // list, and these are meant to be people.
+  let demand = state.demand
+  if (!demand && band.members.length > 0) {
+    const roll = next(r)
+    r = roll.rng
+    if (roll.value < 0.28) {
+      const whoRoll = nextRange(r, 0, band.members.length)
+      r = whoRoll.rng
+      const who = band.members[Math.floor(whoRoll.value)]
+      if (who) demand = demandFrom(who)
+    }
+  }
+
+  return { state: { ...state, band, demand, bandNews: news }, rng: r }
+}
+
+/** A demand shaped by what this person actually wants. */
+function demandFrom(mate: Bandmate): Demand {
+  const them = mate.name.split(' ')[0]
+  switch (mate.agenda) {
+    case 'wants_to_play_out':
+      return {
+        mateId: mate.id,
+        text: `${them} wants to know why you are not playing more. "We are a band. Bands play."`,
+        acceptText: `You told ${them} you would get more gigs booked. Now you have to.`,
+        refuseText: `${them} did not like the answer.`,
+      }
+    case 'wants_the_work':
+      return {
+        mateId: mate.id,
+        text: `${them} thinks the set is sloppy and wants more rehearsal. They are not wrong.`,
+        acceptText: `${them} is happier. The diary is fuller.`,
+        refuseText: `${them} has stopped bothering to say it.`,
+      }
+    case 'wants_a_say':
+      return {
+        mateId: mate.id,
+        text: `${them} has been writing, and wants their songs in the set. Properly, with credit.`,
+        acceptText: `${them} is in the songs now. It is not only your band any more.`,
+        refuseText: `${them} took that badly, and will remember it.`,
+      }
+    case 'wants_it_big':
+      return {
+        mateId: mate.id,
+        text: `${them} wants to know what the plan is. Not the vibe — the plan.`,
+        acceptText: `You gave ${them} a plan. They are holding you to it.`,
+        refuseText: `${them} is starting to think this is a hobby.`,
+      }
+    case 'wants_the_hang':
+      return {
+        mateId: mate.id,
+        text: `${them} says nobody is enjoying this any more, and wants a night that is not about the band.`,
+        acceptText: `You went out. It was not about the band. It helped.`,
+        refuseText: `${them} thinks you have forgotten why anyone started.`,
+      }
   }
 }
 
