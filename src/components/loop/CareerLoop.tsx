@@ -14,6 +14,8 @@ import ItemsPanel from './ItemsPanel.tsx'
 import MerchPanel from './MerchPanel.tsx'
 import FansPanel from './FansPanel.tsx'
 import AwardsNight from './AwardsNight.tsx'
+import CareerPanel from './CareerPanel.tsx'
+import RunEnd from './RunEnd.tsx'
 import GameOver from './GameOver.tsx'
 
 interface Props {
@@ -22,7 +24,7 @@ interface Props {
   onQuit: () => void
 }
 
-type Tab = 'week' | 'songs' | 'gigs' | 'band' | 'things' | 'merch' | 'fans'
+type Tab = 'week' | 'songs' | 'gigs' | 'band' | 'things' | 'merch' | 'fans' | 'career'
 
 /** §5 The Daily Loop: plan a week, watch it happen a day at a time, settle up. */
 export default function CareerLoop({ character, seed, onQuit }: Props) {
@@ -40,6 +42,11 @@ export default function CareerLoop({ character, seed, onQuit }: Props) {
   // nothing to plan. There is no coming back from this one.
   if (state.phase === 'gameover') {
     return <GameOver state={state} character={character} onQuit={onQuit} />
+  }
+
+  // §17: the run ended on your terms (or at 95). The ending owns the screen.
+  if (state.phase === 'ended') {
+    return <RunEnd state={state} character={character} onQuit={onQuit} />
   }
 
   // §15 takes the whole screen — nominations and the ceremony are their own beat.
@@ -65,7 +72,9 @@ export default function CareerLoop({ character, seed, onQuit }: Props) {
         <button type="button" className="creation-quit" onClick={onQuit}>
           Leave
         </button>
-        <span className="creation-step">{billedAs(character)}</span>
+        <span className="creation-step">
+          {billedAs({ realName: character.realName, stageName: state.stageName ?? character.stageName })}
+        </span>
       </header>
 
       <VitalsBar state={state} />
@@ -155,6 +164,15 @@ export default function CareerLoop({ character, seed, onQuit }: Props) {
               )}
             </button>
           )}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'career'}
+            className={`tab${tab === 'career' ? ' is-active' : ''}`}
+            onClick={() => setTab('career')}
+          >
+            Career
+          </button>
         </div>
       )}
 
@@ -172,6 +190,9 @@ export default function CareerLoop({ character, seed, onQuit }: Props) {
           <MerchPanel state={state} character={character} dispatch={dispatch} />
         )}
         {planning && tab === 'fans' && <FansPanel state={state} dispatch={dispatch} />}
+        {planning && tab === 'career' && (
+          <CareerPanel state={state} character={character} dispatch={dispatch} />
+        )}
         {state.phase === 'resolving' && (
           <DayResolve
             state={state}

@@ -139,6 +139,7 @@ import {
   type AwardsState,
   type CampaignApproach,
 } from './awards.ts'
+import { ageForWeek, evaluateEnding, forcedRetirement, rebrandCost, type Ending } from './career.ts'
 
 /** Deducted every week — §12 will decide what happens when you can't pay it. */
 export const COST_OF_LIVING = 200
@@ -158,7 +159,14 @@ export interface Booking {
 /** A gig night costs you the day, like any other. */
 export const GIG_ENERGY = 20
 
-export type LoopPhase = 'planning' | 'resolving' | 'gig' | 'summary' | 'gameover' | 'awards'
+export type LoopPhase =
+  | 'planning'
+  | 'resolving'
+  | 'gig'
+  | 'summary'
+  | 'gameover'
+  | 'awards'
+  | 'ended'
 
 export interface LoopState {
   readonly week: number
@@ -222,6 +230,14 @@ export interface LoopState {
   readonly fanNews: readonly string[]
   /** §15. An awards season in progress, or null. Drives the 'awards' phase. */
   readonly awards: AwardsState | null
+  /** §15/§17. Awards won across the run — a milestone counter. */
+  readonly awardsWon: number
+  /** §17. The rebranded stage name, or null to use the one from creation. */
+  readonly stageName: string | null
+  /** §17. Whether you've ever played a room — a milestone that can't un-happen. */
+  readonly everPlayedGig: boolean
+  /** §17. The ending, once the run is over by choice or by age. */
+  readonly ending: Ending | null
   /** Everything you've ever written (§7). */
   readonly songs: readonly Song[]
   /** The song 'make music' days work on. Null = the bench is empty. */
@@ -304,6 +320,10 @@ export function initialLoopState(seed: number, originId?: OriginId): LoopState {
     attentionUsed: 0,
     fanNews: [],
     awards: null,
+    awardsWon: 0,
+    stageName: null,
+    everPlayedGig: false,
+    ending: null,
     songs: [],
     activeSongId: null,
     nextSongId: 1,
@@ -385,6 +405,9 @@ export type LoopAction =
   // §15
   | { type: 'campaignAwards'; approach: CampaignApproach }
   | { type: 'closeAwards' }
+  // §17
+  | { type: 'rebrand'; newName: string }
+  | { type: 'retire' }
   // §13
   | {
       type: 'makeMerch'
@@ -721,6 +744,11 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       // to the sold pile, reclaimable only at the 3× buy-back now.
       const nextWeekNo = state.week + 1
       const lapsed = expirePawns(state.inventory, nextWeekNo)
+      // §17: the curtain comes down on its own at 95, whatever else was pending.
+      if (forcedRetirement(nextWeekNo)) {
+        return { ...state, week: nextWeekNo, phase: 'ended', ending: endingFor(state, false) }
+      }
+
       return {
         ...state,
         week: nextWeekNo,
@@ -1078,8 +1106,10 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       // you Cred for looking thirsty — that's baked into the campaign.
       let following = state.following
       let cred = state.cred - campaign.credCost
+      let won = 0
       for (const res of cer.results) {
         if (res.won) {
+          won += 1
           const pay = winPayoff(res.category, following)
           following += pay.followingDelta
           cred += pay.credDelta
@@ -1092,6 +1122,7 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         money: state.money - campaign.cost,
         following: Math.max(0, following),
         cred: clamp(cred, 0, 1),
+        awardsWon: state.awardsWon + won,
         awards: { ...state.awards, campaign: action.approach, results: cer.results },
       }
     }
@@ -1099,6 +1130,25 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
     case 'closeAwards': {
       if (state.phase !== 'awards' || !state.awards || !state.awards.results) return state
       return { ...state, phase: 'planning', awards: null }
+    }
+
+    /* ---- §17 The macro ladder ---------------------------------------- */
+
+    case 'rebrand': {
+      if (state.phase !== 'planning' || !action.newName.trim()) return state
+      // §17: the outward name, not the inner self. The cost is recognition
+      // thrown away, and it scales with how well-known you'd become.
+      return {
+        ...state,
+        stageName: action.newName.trim(),
+        following: Math.max(0, state.following - rebrandCost(state.following)),
+      }
+    }
+
+    case 'retire': {
+      if (state.phase !== 'planning') return state
+      // §17: you choose the door. The ending is the whole run said back to you.
+      return { ...state, phase: 'ended', ending: endingFor(state, true) }
     }
 
     /* ---- §14 Superfans ----------------------------------------------- */
@@ -1318,6 +1368,7 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         following: state.following + result.followingGain,
         cred: clamp(state.cred + result.credGain, 0, 1),
         lastGig: { venueName: venue.name, result },
+        everPlayedGig: true,
       }
     }
   }
@@ -1545,6 +1596,24 @@ function applyBeat(
       ],
     },
   }
+}
+
+/**
+ * The ending this run has earned — §17. Reads the accumulated state and hands it
+ * to the build-dependent evaluator. Retiring by choice and ageing out share the
+ * same door; only the framing differs.
+ */
+export function endingFor(state: LoopState, retiredByChoice: boolean): Ending {
+  return evaluateEnding({
+    following: state.following,
+    cred: state.cred,
+    money: state.money,
+    strain: state.strain,
+    recovered: state.chain.recovered,
+    moodLow: state.mood < 25,
+    age: ageForWeek(state.week),
+    retiredByChoice,
+  })
 }
 
 /** Money earned across the week just played. */

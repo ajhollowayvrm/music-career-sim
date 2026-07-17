@@ -2201,6 +2201,53 @@ a {
 }
 
 /* ============================================================
+   The macro ladder — BRIEF §17
+   ============================================================ */
+
+.career-section {
+  margin-bottom: 1.8rem;
+}
+
+.rungs {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.rung {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.92rem;
+  color: var(--text-dim);
+}
+
+.rung.is-reached {
+  color: var(--text);
+}
+
+.rung-mark {
+  color: var(--line);
+  font-size: 0.7rem;
+}
+
+.rung.is-reached .rung-mark {
+  color: var(--accent);
+}
+
+.retire-confirm p {
+  margin-bottom: 0.6rem;
+  font-weight: 600;
+}
+
+/* An ending is not a failure — it's the accent, not the danger red. */
+.gameover-title.is-ending {
+  color: var(--accent);
+}
+
+/* ============================================================
    Live gigs — BRIEF §9
    ============================================================ */
 
