@@ -67,7 +67,15 @@ const playWeek = (state: LoopState, plan: (RouteId | null)[]): LoopState => {
     s = loopReducer(s, { type: 'setDay', dayIndex: i, routeId: r })
   })
   s = loopReducer(s, { type: 'playWeek' })
-  for (let i = 0; i < 7; i++) s = loopReducer(s, { type: 'advanceDay', character })
+  for (let i = 0; i < 7; i++) {
+    s = loopReducer(s, { type: 'advanceDay', character })
+    // §16: a strain-driven event can interrupt a burnt week. The probe measures
+    // energy/mood/burnout, not choices, so it takes the first (benign) option
+    // and moves on — the alternative is the loop freezing on an unanswered card.
+    while (s.activeEvent) {
+      s = loopReducer(s, { type: 'chooseEvent', choiceId: s.activeEvent.choices[0]!.id })
+    }
+  }
   // finishWeek is separate from the last advanceDay so the player gets to read
   // Sunday. It's also where the bills and the catalog land, so skipping it here
   // would quietly measure a week that never paid rent.

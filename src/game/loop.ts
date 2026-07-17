@@ -90,6 +90,18 @@ import {
   type Item,
 } from './items.ts'
 import { buyGear, gearById, gearRecordingBonus } from './gear.ts'
+import {
+  STARTING_STRAIN,
+  WEEKLY_STRAIN_DECAY,
+  applyStrain,
+  chainWeekly,
+  dailyStrainDelta,
+  resolveEvent,
+  rollDailyEvent,
+  startingChain,
+  type ActiveEvent,
+  type ChainState,
+} from './events.ts'
 
 /** Deducted every week — §12 will decide what happens when you can't pay it. */
 export const COST_OF_LIVING = 200
@@ -149,6 +161,14 @@ export interface LoopState {
   readonly nextItemId: number
   /** §11. Names of items a lapsed pawn window took this week, for the board. */
   readonly pawnForfeited: readonly string[]
+  /** §16. Hidden pressure from hard living — drives the addiction chain. */
+  readonly strain: number
+  /** §16. Where the addiction→comeback chain currently stands. */
+  readonly chain: ChainState
+  /** §16. An event interrupting the week, waiting on an answer. Null = none. */
+  readonly activeEvent: ActiveEvent | null
+  /** §16. Outcomes of events this week, for the day log and the summary. */
+  readonly eventLog: readonly string[]
   /** Everything you've ever written (§7). */
   readonly songs: readonly Song[]
   /** The song 'make music' days work on. Null = the bench is empty. */
@@ -219,6 +239,10 @@ export function initialLoopState(seed: number, originId?: OriginId): LoopState {
     formerItems: [],
     nextItemId,
     pawnForfeited: [],
+    strain: STARTING_STRAIN,
+    chain: startingChain(),
+    activeEvent: null,
+    eventLog: [],
     songs: [],
     activeSongId: null,
     nextSongId: 1,
@@ -293,6 +317,8 @@ export type LoopAction =
   | { type: 'buyBackItem'; itemId: number }
   // §10
   | { type: 'buyGear'; catalogId: string }
+  // §16
+  | { type: 'chooseEvent'; choiceId: string }
 
 export function loopReducer(state: LoopState, action: LoopAction): LoopState {
   switch (action.type) {
@@ -315,6 +341,8 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
 
     case 'advanceDay': {
       if (state.phase !== 'resolving') return state
+      // §16: a day can't advance while an event is waiting on an answer.
+      if (state.activeEvent) return state
       const dayIndex = state.days.length
       if (dayIndex >= DAYS_IN_WEEK) return state
 
@@ -424,13 +452,36 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         }
       }
 
+      // §16: the day is done — hard living moves strain, and then the evening
+      // may bring something you didn't schedule. The chain takes priority over
+      // the one-offs; a fired event pauses the week until it's answered.
+      const followingNow = state.following + result.followingDelta
+      const strainAfter = applyStrain(
+        state.strain,
+        dailyStrainDelta(routeId, result.burntOut, state.mood),
+      )
+      const ev = rollDailyEvent(
+        {
+          strain: strainAfter,
+          chain: state.chain,
+          mood: result.moodAfter,
+          energy: result.energyAfter,
+          following: followingNow,
+          cred: clamp(state.cred + result.credDelta, 0, 1),
+          releasedSongs: released(state).length,
+          ownedGear: state.inventory.filter((i) => i.status.kind === 'owned'),
+          week: state.week,
+        },
+        rngAfter,
+      )
+
       // Resolving a day never ends the week. It used to, and that silently ate
       // Sunday: the seventh day resolved and the screen flipped to the summary
       // in the same tick, so its report was never read. Closing the week is
       // 'finishWeek', which the player asks for once they've seen all seven.
       return {
         ...state,
-        rng: rngAfter,
+        rng: ev.rng,
         days: [...state.days, result],
         songs,
         band,
@@ -440,8 +491,10 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         energy: result.energyAfter,
         mood: result.moodAfter,
         money: state.money + result.moneyDelta,
-        following: state.following + result.followingDelta,
+        following: followingNow,
         cred: clamp(state.cred + result.credDelta, 0, 1),
+        strain: strainAfter,
+        activeEvent: ev.event,
       }
     }
 
@@ -480,6 +533,20 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       const moneyAfter = state.money + myCatalog - COST_OF_LIVING
       const rent = assessRent(moneyAfter, state.graceWeeksLeft)
 
+      // §16: where you are in the chain weighs on the week — the bottom stalls
+      // your reach and drags your mood, recovery quietly heals — and strain
+      // bleeds off a little, while recovery counts toward the comeback.
+      const chainWk = chainWeekly(state.chain)
+      const dampenedFollowingGain = Math.round(followingGain * chainWk.followingMult)
+      const strainNext = applyStrain(state.strain, -WEEKLY_STRAIN_DECAY)
+      const chainNext: ChainState = {
+        ...state.chain,
+        weeksRecovering:
+          state.chain.stage === 'recovering'
+            ? state.chain.weeksRecovering + 1
+            : state.chain.weeksRecovering,
+      }
+
       return {
         ...after.state,
         songs: aged,
@@ -489,9 +556,12 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         lastRentEvent: rent.event,
         lastCostOfLiving: COST_OF_LIVING,
         lastCatalogEarnings: myCatalog,
-        following: state.following + followingGain,
+        following: state.following + dampenedFollowingGain,
         cred: clamp(state.cred + credGain, 0, 1),
-        lastFollowingGain: followingGain + state.days.reduce((s, d) => s + d.followingDelta, 0),
+        mood: clamp(state.mood + chainWk.moodDelta, 0, 100),
+        strain: strainNext,
+        chain: chainNext,
+        lastFollowingGain: dampenedFollowingGain + state.days.reduce((s, d) => s + d.followingDelta, 0),
         rng: after.rng,
       }
     }
@@ -520,6 +590,8 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         lastBacklash: [],
         lastGig: null,
         gig: null,
+        // §16: this week's events have been read in the summary — start clean.
+        eventLog: [],
       }
     }
 
@@ -770,6 +842,63 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         inventory: [...state.inventory, item],
         nextItemId: state.nextItemId + 1,
         money: state.money - gear.price,
+      }
+    }
+
+    /* ---- §16 Events -------------------------------------------------- */
+
+    case 'chooseEvent': {
+      const active = state.activeEvent
+      if (!active) return state
+      const outcome = resolveEvent(
+        active.id,
+        action.choiceId,
+        {
+          strain: state.strain,
+          chain: state.chain,
+          mood: state.mood,
+          energy: state.energy,
+          following: state.following,
+          cred: state.cred,
+          releasedSongs: released(state).length,
+          ownedGear: state.inventory.filter((i) => i.status.kind === 'owned'),
+          week: state.week,
+        },
+        active.targetItemId,
+      )
+      const fx = outcome.effects
+
+      // §16: a scrapped piece of gear goes to the sold pile, like anything lost
+      // (§10/§11) — buy-back at 3× if you ever want it again.
+      let inventory = state.inventory
+      let formerItems = state.formerItems
+      if (fx.removeItemId !== undefined) {
+        const lost = state.inventory.find((i) => i.id === fx.removeItemId)
+        if (lost) {
+          inventory = state.inventory.filter((i) => i.id !== fx.removeItemId)
+          formerItems = [...state.formerItems, { ...lost, status: { kind: 'owned' } }]
+        }
+      }
+
+      const chain: ChainState = {
+        stage: fx.chainTo ?? state.chain.stage,
+        // Entering recovery restarts its clock; the comeback resets it to 0 too.
+        weeksRecovering: fx.chainTo === 'recovering' ? 0 : state.chain.weeksRecovering,
+        recovered: fx.setRecovered ? true : state.chain.recovered,
+      }
+
+      return {
+        ...state,
+        activeEvent: null,
+        eventLog: [...state.eventLog, outcome.text],
+        inventory,
+        formerItems,
+        money: state.money + (fx.money ?? 0),
+        mood: clamp(state.mood + (fx.moodDelta ?? 0), 0, 100),
+        following: Math.max(0, state.following + (fx.followingDelta ?? 0)),
+        cred: clamp(state.cred + (fx.credDelta ?? 0), 0, 1),
+        strain: applyStrain(state.strain, fx.strainDelta ?? 0),
+        chain,
       }
     }
 

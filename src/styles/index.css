@@ -1886,6 +1886,90 @@ a {
 }
 
 /* ============================================================
+   Random events — BRIEF §16
+   ============================================================ */
+
+/* The strain warning, felt in words. Danger red normally; the accent while
+   you're healing, because recovery is the strong path, not a scolding. */
+.strain-notice {
+  margin: 0.75rem 0 0;
+  padding: 0.7rem 0.9rem;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  border-left: 2px solid #c4553d;
+  background: color-mix(in srgb, #c4553d 9%, var(--bg-raised));
+  text-wrap: pretty;
+}
+
+.strain-notice.is-healing {
+  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, var(--bg-raised));
+}
+
+/* An event mid-week — it owns the turn, so it reads like a card, not a footnote. */
+.event-card {
+  margin-top: 0.5rem;
+  padding: 1.2rem 1.1rem;
+  border: 1px solid var(--accent-dim);
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg-raised));
+}
+
+.event-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  margin-bottom: 0.4rem;
+}
+
+.event-title {
+  font-size: 1.4rem;
+  color: var(--accent);
+  margin-bottom: 0.6rem;
+}
+
+.event-text {
+  font-size: 1rem;
+  line-height: 1.5;
+  text-wrap: pretty;
+  margin-bottom: 1.1rem;
+}
+
+.event-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* Outcomes already answered, folded into the day log and the summary. */
+.event-log {
+  list-style: none;
+  padding: 0;
+  margin: 0.6rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.event-log-entry,
+.week-event {
+  padding: 0.7rem 0.9rem;
+  border-left: 2px solid var(--accent-dim);
+  background: var(--bg-raised);
+  border-radius: 0 0.5rem 0.5rem 0;
+  font-size: 0.9rem;
+  text-wrap: pretty;
+}
+
+.week-events {
+  margin-bottom: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* ============================================================
    Live gigs — BRIEF §9
    ============================================================ */
 

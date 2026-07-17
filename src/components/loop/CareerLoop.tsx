@@ -138,6 +138,7 @@ export default function CareerLoop({ character, seed, onQuit }: Props) {
             state={state}
             onNext={() => dispatch({ type: 'advanceDay', character })}
             onFinish={() => dispatch({ type: 'finishWeek' })}
+            onChoose={(choiceId) => dispatch({ type: 'chooseEvent', choiceId })}
           />
         )}
         {state.phase === 'summary' && (

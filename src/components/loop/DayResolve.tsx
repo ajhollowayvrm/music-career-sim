@@ -1,11 +1,13 @@
 import { routeById } from '../../game/routes.ts'
 import { DAYS } from '../../game/week.ts'
 import type { LoopState } from '../../game/loop.ts'
+import EventCard from './EventCard.tsx'
 
 interface Props {
   state: LoopState
   onNext: () => void
   onFinish: () => void
+  onChoose: (choiceId: string) => void
 }
 
 /**
@@ -19,7 +21,7 @@ interface Props {
  * pillar 2. What's on screen is what happened and how this particular person
  * read it (§3's perception filter, see resolve.ts).
  */
-export default function DayResolve({ state, onNext, onFinish }: Props) {
+export default function DayResolve({ state, onNext, onFinish, onChoose }: Props) {
   const done = state.days.length
   const current = state.days[done - 1]
   const remaining = DAYS.length - done
@@ -47,17 +49,34 @@ export default function DayResolve({ state, onNext, onFinish }: Props) {
         })}
       </ol>
 
-      {done === 0 && <p className="step-lede">The week starts.</p>}
+      {/* §16: the outcomes of events already answered this week, so the day log
+          carries the whole story and not just the routes. */}
+      {state.eventLog.length > 0 && (
+        <ul className="event-log">
+          {state.eventLog.map((line, i) => (
+            <li key={i} className="event-log-entry">
+              {line}
+            </li>
+          ))}
+        </ul>
+      )}
 
-      <div className="resolve-actions">
-        <button
-          type="button"
-          className="btn btn-primary btn-grow"
-          onClick={allSeen ? onFinish : onNext}
-        >
-          {allSeen ? 'How the week went' : `Next day — ${DAYS[done]}`}
-        </button>
-      </div>
+      {done === 0 && !state.activeEvent && <p className="step-lede">The week starts.</p>}
+
+      {/* §16: an event owns the turn — no advancing until it's answered. */}
+      {state.activeEvent ? (
+        <EventCard event={state.activeEvent} onChoose={onChoose} />
+      ) : (
+        <div className="resolve-actions">
+          <button
+            type="button"
+            className="btn btn-primary btn-grow"
+            onClick={allSeen ? onFinish : onNext}
+          >
+            {allSeen ? 'How the week went' : `Next day — ${DAYS[done]}`}
+          </button>
+        </div>
+      )}
 
       <p className="sr-only" role="status">
         {current

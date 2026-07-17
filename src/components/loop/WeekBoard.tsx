@@ -11,6 +11,7 @@ import {
 import { activeSong, formatMoney, type LoopAction, type LoopState } from '../../game/loop.ts'
 import { formatFollowing } from '../../game/fame.ts'
 import { describeRent } from '../../game/finances.ts'
+import { describeStrain } from '../../game/events.ts'
 import { venueById } from '../../game/venues.ts'
 
 interface Props {
@@ -53,6 +54,17 @@ export default function WeekBoard({ state, dispatch }: Props) {
             board until it's cleared, or until it clears you out. */}
         {describeRent(state.graceWeeksLeft) && (
           <p className="rent-notice is-overdue">{describeRent(state.graceWeeksLeft)}</p>
+        )}
+        {/* §16: the game's honest tap on the shoulder before the chain takes it
+            out of your hands. Only shown once it's worth warning about. */}
+        {describeStrain(state.strain, state.chain.stage) && (
+          <p
+            className={`strain-notice${
+              state.chain.stage === 'recovering' ? ' is-healing' : ''
+            }`}
+          >
+            {describeStrain(state.strain, state.chain.stage)}
+          </p>
         )}
       </div>
 

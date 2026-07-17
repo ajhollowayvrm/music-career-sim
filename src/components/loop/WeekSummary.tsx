@@ -85,6 +85,17 @@ export default function WeekSummary({ state, onNext }: Props) {
 
       <GigSummary state={state} />
 
+      {/* §16: the things the week threw at you that weren't on the plan. */}
+      {state.eventLog.length > 0 && (
+        <section className="week-events">
+          {state.eventLog.map((line, i) => (
+            <p key={i} className="week-event">
+              {line}
+            </p>
+          ))}
+        </section>
+      )}
+
       {/* §4: a move that read as selling out. */}
       {state.lastBacklash.map((title) => (
         <p key={title} className="backlash">
