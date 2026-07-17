@@ -130,6 +130,15 @@ import {
   superfanTargetCount,
   type Superfan,
 } from './superfans.ts'
+import {
+  AWARDS_INTERVAL,
+  campaignById,
+  nominationsFor,
+  runCeremony,
+  winPayoff,
+  type AwardsState,
+  type CampaignApproach,
+} from './awards.ts'
 
 /** Deducted every week — §12 will decide what happens when you can't pay it. */
 export const COST_OF_LIVING = 200
@@ -149,7 +158,7 @@ export interface Booking {
 /** A gig night costs you the day, like any other. */
 export const GIG_ENERGY = 20
 
-export type LoopPhase = 'planning' | 'resolving' | 'gig' | 'summary' | 'gameover'
+export type LoopPhase = 'planning' | 'resolving' | 'gig' | 'summary' | 'gameover' | 'awards'
 
 export interface LoopState {
   readonly week: number
@@ -211,6 +220,8 @@ export interface LoopState {
   readonly attentionUsed: number
   /** §14. Names of fans who emerged or curdled this week, for the summary. */
   readonly fanNews: readonly string[]
+  /** §15. An awards season in progress, or null. Drives the 'awards' phase. */
+  readonly awards: AwardsState | null
   /** Everything you've ever written (§7). */
   readonly songs: readonly Song[]
   /** The song 'make music' days work on. Null = the bench is empty. */
@@ -292,6 +303,7 @@ export function initialLoopState(seed: number, originId?: OriginId): LoopState {
     superfans: [],
     attentionUsed: 0,
     fanNews: [],
+    awards: null,
     songs: [],
     activeSongId: null,
     nextSongId: 1,
@@ -370,6 +382,9 @@ export type LoopAction =
   | { type: 'chooseEvent'; choiceId: string }
   // §14
   | { type: 'nurtureFan'; fanId: number }
+  // §15
+  | { type: 'campaignAwards'; approach: CampaignApproach }
+  | { type: 'closeAwards' }
   // §13
   | {
       type: 'makeMerch'
@@ -662,6 +677,16 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         nextSfId += 1
       }
 
+      // §15: once a year the season comes round. If your build has put you in
+      // anyone's conversation, a nomination is waiting after the summary.
+      let awardsNext = state.awards
+      if (state.week % AWARDS_INTERVAL === 0) {
+        const year = state.week / AWARDS_INTERVAL
+        const credNow = clamp(state.cred + credGain + merchCred, 0, 1)
+        const noms = nominationsFor({ cred: credNow, following: followingTotal, releasedSongs: aged, year })
+        if (noms.length > 0) awardsNext = { year, nominations: noms, campaign: null, results: null }
+      }
+
       return {
         ...after.state,
         songs: aged,
@@ -681,6 +706,7 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         chain: chainNext,
         superfans: driftedFans,
         fanNews,
+        awards: awardsNext,
         lastFollowingGain:
           amplifiedFollowingGain +
           fanFollowing +
@@ -698,7 +724,8 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       return {
         ...state,
         week: nextWeekNo,
-        phase: 'planning',
+        // §15: a pending nomination takes the screen before the new week's plan.
+        phase: state.awards ? 'awards' : 'planning',
         inventory: lapsed.inventory,
         formerItems: [...state.formerItems, ...lapsed.forfeited],
         pawnForfeited: lapsed.forfeited.map((i) => i.name),
@@ -1036,6 +1063,42 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         strain: applyStrain(state.strain, fx.strainDelta ?? 0),
         chain,
       }
+    }
+
+    /* ---- §15 Awards -------------------------------------------------- */
+
+    case 'campaignAwards': {
+      if (state.phase !== 'awards' || !state.awards || state.awards.results) return state
+      const campaign = campaignById(action.approach)
+      if (state.money < campaign.cost) return state
+
+      const cer = runCeremony(state.awards.nominations, campaign, state.rng)
+
+      // §15: a win spikes Following AND Cred. An all-out push has already cost
+      // you Cred for looking thirsty — that's baked into the campaign.
+      let following = state.following
+      let cred = state.cred - campaign.credCost
+      for (const res of cer.results) {
+        if (res.won) {
+          const pay = winPayoff(res.category, following)
+          following += pay.followingDelta
+          cred += pay.credDelta
+        }
+      }
+
+      return {
+        ...state,
+        rng: cer.rng,
+        money: state.money - campaign.cost,
+        following: Math.max(0, following),
+        cred: clamp(cred, 0, 1),
+        awards: { ...state.awards, campaign: action.approach, results: cer.results },
+      }
+    }
+
+    case 'closeAwards': {
+      if (state.phase !== 'awards' || !state.awards || !state.awards.results) return state
+      return { ...state, phase: 'planning', awards: null }
     }
 
     /* ---- §14 Superfans ----------------------------------------------- */

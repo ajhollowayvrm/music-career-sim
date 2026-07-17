@@ -13,7 +13,7 @@ not an idle clicker.
 
 **Pre-alpha, and playable.** Author a musician, plan your weeks, write songs, put them out, play them
 to a room, and find (or wreck) a band. The design document is complete and remains the source of
-truth; twelve of its eighteen systems are built. Nothing is saved.
+truth; thirteen of its eighteen systems are built. Nothing is saved.
 
 | | |
 | --- | --- |
@@ -32,7 +32,7 @@ truth; twelve of its eighteen systems are built. Nothing is saved.
 | ✅ | **Events engine (§16)** — one-offs interrupt the day; the addiction→comeback chain |
 | ✅ | **Merch (§13)** — the inventory gamble, cred-vs-cash pricing, scarcity; gigs sell it |
 | ✅ | **Superfans (§14)** — named faces inside Following; four types, finite attention, critics |
-| ⏳ | §15 awards |
+| ✅ | **Music awards (§15)** — prestige vs popularity; nominations, campaigning, wins |
 | ⏳ | §17 the macro ladder — the arc above all of it |
 
 The interview is **seven questions**. §2 rejects a five-question version as too shallow, so five is

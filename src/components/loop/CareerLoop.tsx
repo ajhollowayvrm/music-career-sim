@@ -13,6 +13,7 @@ import BandPanel from './BandPanel.tsx'
 import ItemsPanel from './ItemsPanel.tsx'
 import MerchPanel from './MerchPanel.tsx'
 import FansPanel from './FansPanel.tsx'
+import AwardsNight from './AwardsNight.tsx'
 import GameOver from './GameOver.tsx'
 
 interface Props {
@@ -39,6 +40,11 @@ export default function CareerLoop({ character, seed, onQuit }: Props) {
   // nothing to plan. There is no coming back from this one.
   if (state.phase === 'gameover') {
     return <GameOver state={state} character={character} onQuit={onQuit} />
+  }
+
+  // §15 takes the whole screen — nominations and the ceremony are their own beat.
+  if (state.phase === 'awards') {
+    return <AwardsNight state={state} dispatch={dispatch} />
   }
 
   // §9 takes the whole screen — a gig is not a sidebar.
