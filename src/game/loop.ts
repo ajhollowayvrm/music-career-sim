@@ -77,6 +77,7 @@ import {
   emptyPlan,
   type WeekPlan,
 } from './week.ts'
+import { assessRent, isEvicted, type RentEvent } from './finances.ts'
 
 /** Deducted every week — §12 will decide what happens when you can't pay it. */
 export const COST_OF_LIVING = 200
@@ -96,7 +97,7 @@ export interface Booking {
 /** A gig night costs you the day, like any other. */
 export const GIG_ENERGY = 20
 
-export type LoopPhase = 'planning' | 'resolving' | 'gig' | 'summary'
+export type LoopPhase = 'planning' | 'resolving' | 'gig' | 'summary' | 'gameover'
 
 export interface LoopState {
   readonly week: number
@@ -120,6 +121,14 @@ export interface LoopState {
   readonly days: readonly DayResult[]
   /** Money taken by cost of living at the end of the week just played. */
   readonly lastCostOfLiving: number
+  /**
+   * §12. Weeks of grace left on overdue rent. 0 = square with the landlord;
+   * above 0 = on notice, and it runs out into eviction. Persists across weeks —
+   * only catching up or being evicted clears it.
+   */
+  readonly graceWeeksLeft: number
+  /** §12. What rent did in the week just played, for the summary to speak. */
+  readonly lastRentEvent: RentEvent
   /** Everything you've ever written (§7). */
   readonly songs: readonly Song[]
   /** The song 'make music' days work on. Null = the bench is empty. */
@@ -181,6 +190,8 @@ export function initialLoopState(seed: number): LoopState {
     personaSamples: 0,
     days: [],
     lastCostOfLiving: 0,
+    graceWeeksLeft: 0,
+    lastRentEvent: 'none',
     songs: [],
     activeSongId: null,
     nextSongId: 1,
@@ -423,11 +434,18 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       // §8 — the weekly pass over the people. They act on their own.
       const after = runBandWeek(state, rngHere)
 
+      // §12: the bills land, then rent is judged. Going under water serves
+      // notice; a month of it still under water is eviction, and the run ends.
+      const moneyAfter = state.money + myCatalog - COST_OF_LIVING
+      const rent = assessRent(moneyAfter, state.graceWeeksLeft)
+
       return {
         ...after.state,
         songs: aged,
-        phase: 'summary',
-        money: state.money + myCatalog - COST_OF_LIVING,
+        phase: isEvicted(rent.event) ? 'gameover' : 'summary',
+        money: moneyAfter,
+        graceWeeksLeft: rent.graceWeeksLeft,
+        lastRentEvent: rent.event,
         lastCostOfLiving: COST_OF_LIVING,
         lastCatalogEarnings: myCatalog,
         following: state.following + followingGain,
@@ -446,6 +464,9 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         plan: emptyPlan(),
         days: [],
         lastCostOfLiving: 0,
+        // graceWeeksLeft is NOT reset — being behind on rent carries into next
+        // week (§12). Only catching up or eviction clears it.
+        lastRentEvent: 'none',
         lastCatalogEarnings: 0,
         lastFollowingGain: 0,
         lastBacklash: [],

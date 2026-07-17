@@ -99,8 +99,17 @@ for (const [name, plan] of ARCHETYPES) {
       `    w${w + 1}  energy ${String(Math.round(s.energy)).padStart(3)}` +
         `  mood ${String(Math.round(s.mood)).padStart(3)}` +
         `  money ${String(s.money).padStart(5)}` +
-        `  burnt ${burnt}/7  ${bands}`,
+        `  burnt ${burnt}/7  ${bands}` +
+        (s.graceWeeksLeft > 0 ? `  overdue(${s.graceWeeksLeft})` : ''),
     )
+    // §12: if rent ran out mid-probe the reducer is now frozen in 'gameover',
+    // and the frozen no-op weeks after it are noise. None of the archetypes
+    // should evict inside four weeks — the grace month outlasts the horizon — so
+    // this is a backstop that surfaces the fail state rather than hiding it.
+    if (s.phase === 'gameover') {
+      console.log('    evicted — run ended')
+      break
+    }
     s = loopReducer(s, { type: 'nextWeek' })
   }
 }
@@ -129,6 +138,8 @@ for (const [name, plan] of ARCHETYPES) {
         ` start ${String(Math.round(startEnergy)).padStart(3)}` +
         `  board says ${predicted}  week burns ${actual}`,
     )
+    // Don't assert on the frozen no-op weeks after an eviction (§12).
+    if (s.phase === 'gameover') break
     s = loopReducer(s, { type: 'nextWeek' })
   }
 }

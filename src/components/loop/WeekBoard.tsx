@@ -10,6 +10,7 @@ import {
 } from '../../game/week.ts'
 import { activeSong, formatMoney, type LoopAction, type LoopState } from '../../game/loop.ts'
 import { formatFollowing } from '../../game/fame.ts'
+import { describeRent } from '../../game/finances.ts'
 import { venueById } from '../../game/venues.ts'
 
 interface Props {
@@ -47,6 +48,12 @@ export default function WeekBoard({ state, dispatch }: Props) {
         <p className="step-lede">
           Lay out your week. Empty days are rest — and rest is a move, not a wasted turn.
         </p>
+        {/* §12: overdue rent is a clock the player has to plan around — pick up
+            shifts, book a paying room, or sell something (§11). It stays on the
+            board until it's cleared, or until it clears you out. */}
+        {describeRent(state.graceWeeksLeft) && (
+          <p className="rent-notice is-overdue">{describeRent(state.graceWeeksLeft)}</p>
+        )}
       </div>
 
       <ol className="week">

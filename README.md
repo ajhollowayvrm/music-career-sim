@@ -13,7 +13,7 @@ not an idle clicker.
 
 **Pre-alpha, and playable.** Author a musician, plan your weeks, write songs, put them out, play them
 to a room, and find (or wreck) a band. The design document is complete and remains the source of
-truth; six of its eighteen systems are built. Nothing is saved.
+truth; seven of its eighteen systems are built. Nothing is saved.
 
 | | |
 | --- | --- |
@@ -26,7 +26,8 @@ truth; six of its eighteen systems are built. Nothing is saved.
 | ✅ | **Fame (§4)** — Following vs Cred, the purist/populist fork, selling out and backlash |
 | ✅ | **Live gigs (§9)** — book a room, craft a set, play it; pacing, persona, disasters |
 | ✅ | **The band (§8)** — full agents, multi-faceted chemistry, the trap, emergent leadership |
-| ⏳ | §12 the fail state, §16 the events engine, §10 gear, §13 merch, §14 superfans, §15 awards |
+| ✅ | **Finances & the fail state (§12)** — rent, the one grace month, eviction ends the run |
+| ⏳ | §16 the events engine, §10 gear, §13 merch, §14 superfans, §15 awards |
 | ⏳ | §17 the macro ladder — the arc above all of it |
 
 The interview is **seven questions**. §2 rejects a five-question version as too shallow, so five is

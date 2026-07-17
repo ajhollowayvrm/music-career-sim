@@ -1,6 +1,7 @@
 import { isBurntOut } from '../../game/week.ts'
 import { formatMoney, released, weekEarnings, type LoopState } from '../../game/loop.ts'
 import { STARTING_CRED, describeCred, describeGap, formatFollowing } from '../../game/fame.ts'
+import { rentEventLine } from '../../game/finances.ts'
 import { GigSummary } from './GigNight.tsx'
 
 interface Props {
@@ -20,6 +21,8 @@ export default function WeekSummary({ state, onNext }: Props) {
   const burntDays = state.days.filter((d) => d.burntOut).length
   const goodDays = state.days.filter((d) => d.band === 'good').length
   const gap = describeGap(state.following, state.cred)
+  // §12: the landlord's line, when rent did something this week.
+  const rentLine = rentEventLine(state.lastRentEvent, state.graceWeeksLeft)
 
   return (
     <div className="summary">
@@ -53,6 +56,14 @@ export default function WeekSummary({ state, onNext }: Props) {
           <span className={state.money < 0 ? 'is-broke' : ''}>{formatMoney(state.money)}</span>
         </p>
       </div>
+
+      {/* §12: rent is the game-over factor. When it moves — you slipped, you're
+          still behind, you clawed back — the landlord gets the loudest line. */}
+      {rentLine && (
+        <p className={`rent-notice${state.graceWeeksLeft > 0 ? ' is-overdue' : ' is-clear'}`}>
+          {rentLine}
+        </p>
+      )}
 
       {/* §4. Following is a figure because the world counts it for you; Cred
           never is, because nobody can tell you what your standing is. */}

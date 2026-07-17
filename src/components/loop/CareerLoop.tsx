@@ -10,6 +10,7 @@ import SongsPanel from './SongsPanel.tsx'
 import GigsPanel from './GigsPanel.tsx'
 import GigNight from './GigNight.tsx'
 import BandPanel from './BandPanel.tsx'
+import GameOver from './GameOver.tsx'
 
 interface Props {
   character: Character
@@ -26,6 +27,12 @@ export default function CareerLoop({ character, seed, onQuit }: Props) {
 
   const planning = state.phase === 'planning'
   const benchCount = workbench(state).length
+
+  // §12: the run is over. Eviction takes the whole screen — no vitals, no tabs,
+  // nothing to plan. There is no coming back from this one.
+  if (state.phase === 'gameover') {
+    return <GameOver state={state} character={character} onQuit={onQuit} />
+  }
 
   // §9 takes the whole screen — a gig is not a sidebar.
   if (state.phase === 'gig') {

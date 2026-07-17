@@ -1667,6 +1667,90 @@ a {
 }
 
 /* ============================================================
+   Finances & the fail state — BRIEF §12
+   ============================================================ */
+
+/* The landlord's line. Overdue is the danger red the money already uses;
+   caught-up is the accent — a small relief, not a celebration. */
+.rent-notice {
+  margin: 0.75rem 0 0;
+  padding: 0.7rem 0.9rem;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  text-wrap: pretty;
+}
+
+.rent-notice.is-overdue {
+  border-left: 2px solid #c4553d;
+  background: color-mix(in srgb, #c4553d 10%, var(--bg-raised));
+  color: var(--text);
+}
+
+.rent-notice.is-clear {
+  border-left: 2px solid var(--accent-dim);
+  background: var(--bg-raised);
+  color: var(--text-dim);
+}
+
+/* ---------- The end of a run ---------- */
+
+.gameover {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 2rem 0.25rem;
+  text-wrap: pretty;
+}
+
+.gameover-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  margin-bottom: 0.6rem;
+}
+
+.gameover-title {
+  font-size: 2.4rem;
+  line-height: 1.05;
+  color: #c4553d;
+  margin-bottom: 1.1rem;
+}
+
+.gameover-lede {
+  font-size: 1.05rem;
+  line-height: 1.5;
+  margin-bottom: 1.5rem;
+}
+
+.gameover-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.1rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: var(--bg-raised);
+  font-size: 0.95rem;
+  color: var(--text-dim);
+}
+
+.gameover-facts strong {
+  color: var(--text);
+}
+
+.gameover-cred {
+  margin-top: 0.2rem;
+  color: var(--text);
+}
+
+.gameover-coda {
+  margin: 1.4rem 0 1.6rem;
+  font-size: 0.95rem;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* ============================================================
    Live gigs — BRIEF §9
    ============================================================ */
 
