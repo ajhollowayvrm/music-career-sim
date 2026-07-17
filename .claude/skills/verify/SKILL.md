@@ -52,10 +52,25 @@ Clicking through the interview one tool call at a time is slow. `browser_evaluat
 '.leaning-read'                    // the taste prose
 '.portrait-lines li'               // the trait prose on the confirm screen
 '[role=status]'                    // "Question 4 of 7. 3 answered."
+
+// The loop (§5)
+'.day-btn'                         // a day row; aria-expanded says if its picker is open
+'.pick'                            // a route inside an open day picker
+'.day-energy-fill'                 // projected end-of-day energy (style.width)
+'.day.is-spent'                    // days the plan burns you on
+'.board-warn' / '.board-note'      // the warning / the neutral read
+'.board-clear'                     // clear the week
+'.log-entry' / '.log-report'       // resolved days
+'.ledger-row' / '.summary-read'    // week summary
 ```
 
 Reload between runs for a clean slate — chaining runs via "Back to the start" inside one
 `browser_evaluate` is where the driving scripts break.
+
+Two traps when driving the week board: a day row **toggles**, so check
+`aria-expanded !== 'true'` before clicking it open or you'll close the one you just opened; and the
+resolve screen's button becomes "How the week went" on the last day, so a naive 7-click loop sails
+straight past the summary into the next week's board.
 
 Typing into the name field needs React's value setter, not `input.value =`:
 
@@ -74,6 +89,22 @@ setter.call(input, 'Name'); input.dispatchEvent(new Event('input', { bubbles: tr
   `document.documentElement.scrollWidth > window.innerWidth` must be false.
 - **Safe areas.** `env()` is 0 in a desktop browser, so override the vars to simulate an iPhone:
   `:root{--safe-top:59px;--safe-bottom:34px}` — content must still clear both.
+
+### After touching the loop
+
+Run the balance probe — it's a read plus one hard gate (the board's burnout warning must equal what
+the week actually burns; those drifted apart once already):
+
+```bash
+npx -y esbuild tools/week-balance.ts --bundle --platform=node --format=esm \
+  --outfile=/tmp/week-balance.mjs && node /tmp/week-balance.mjs
+```
+
+Then drive it: plan an overbooked week (7 action days) and confirm the board **warns but does not
+block**, and that the count it warns with is the count the week delivers. Plan a sane week (3 shifts,
+2 music, 2 rest) and confirm no warning. Check the day reports carry a self-read clause that varies
+with the character's Confidence — that's §3's perception filter, and it's the thing most likely to
+silently stop working.
 
 ### After touching the interview or traits
 
@@ -96,3 +127,9 @@ has lost its range.
 - The interview's Back walks one question at a time; the progress ticks are the jump.
 - HTML entities (`&rsquo;`) in `src/game/*.ts` strings render **literally** — those are plain
   strings, not JSX. Use a real apostrophe in a double-quoted string.
+- Outcome copy must not contradict its own mechanic. Rest always restores energy whatever the roll,
+  so a bad rest day is about how it *felt* (restless), never "it did not help".
+- A line that prints every day of a burnt week needs variants. One fixed sentence seven times reads
+  as a bug, not as exhaustion.
+- `npm run build 2>&1 | tail` reports **tail's** exit code, not tsc's. Redirect to a file and check
+  `$?` or a type error looks like a green build.

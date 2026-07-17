@@ -11,24 +11,47 @@ not an idle clicker.
 
 ## Status
 
-**Pre-alpha — designed, not built.** The design document is complete and is the source of truth;
-none of the eighteen systems are implemented yet. What's here today is the project scaffold, the
-Pages deploy pipeline, and a title screen. **Nothing is playable.**
+**Pre-alpha, and playable.** You can author a musician and grind out weeks of a career. The design
+document is complete and remains the source of truth; two of its eighteen systems are built, and the
+routes you spend your week on mostly have nowhere to pay out yet. Nothing is saved.
 
 | | |
 | --- | --- |
 | ✅ | Design doc (`docs/BRIEF.md`) — 18 sections, complete |
 | ✅ | Vite + React + TypeScript scaffold, GitHub Pages deploy on push to `main` |
 | ✅ | Installable iOS web app — offline-capable, safe-area aware |
-| ✅ | Title screen |
 | ✅ | **Character creation (§2)** — name, origin, a 7-question interview, talent + taste, confirm |
-| ⏳ | §5 The Daily Loop — next |
+| ✅ | **The loop (§5)** — plan a week, watch it resolve a day at a time, settle up |
+| ⏳ | §7 Songwriting — the likeliest next system; "make music" has nothing to hand its work to |
 | ⏳ | Everything else |
 
 The interview is **seven questions**. §2 rejects a five-question version as too shallow, so five is
 the floor; seven is AJ's call. The five topics the brief names by hand are fixed and not up for
 cutting — why you make music, the stage, a flaky bandmate, exposure, a brutal review. The two
 discretionary slots are the contract (the only real driver of Industry Trust) and the closer.
+
+### The clock: the week plans, the day resolves
+
+§5 says "the clock is DAILY, not weekly", and it still is. The **week is the planning surface** —
+seven days laid out at once under a projected energy curve — but it **resolves one day at a time**.
+That split is deliberate and load-bearing: §5's own example (skip the party and play the gig sharp,
+or go and pay for it with tomorrow's performance) only means anything at day granularity, and §16's
+events need somewhere to interrupt from. A pure weekly turn would delete both. Don't collapse it.
+
+Energy is what makes a plan a plan: roughly four action days a week is comfortable, five is
+break-even, six bleeds, seven collapses — so rest is a real move, not a forfeit. Money pulls the
+other way. Three shifts a week is the only solvent plan, and it's the one that grinds your mood
+down; mood then feeds back into how good your music is. **No plan is a free win**, and that trade is
+the loop. It falls out of the constants in `week.ts` and `resolve.ts` rather than being scripted,
+which is exactly why it's easy to break — see the check below.
+
+### How a day reads
+
+§3 says the fixed traits "filter self-perception", so a day is resolved in two parts. What happened
+is a hidden quality number (talent, discipline, energy, mood, luck). How you read it is a clause
+chosen by **Confidence**. Two characters can have the identical day and read it differently — the
+shaky one can't hold onto a good session, the certain one shrugs off a bad one. That split is what
+lets the numbers stay hidden and still be felt (pillar 2).
 
 ## The target platform
 
@@ -80,6 +103,26 @@ npm run preview    # serve the production build locally
 ```
 
 The dev server and preview both serve under the `/music-career-sim/` base path, not `/`.
+
+### Checking the loop
+
+Pillar 2 hides energy, mood and quality behind prose, so a loop that has quietly become solvable
+looks exactly like one that hasn't. Run this after touching any constant in `week.ts` or
+`resolve.ts`:
+
+```bash
+npx -y esbuild tools/week-balance.ts --bundle --platform=node --format=esm \
+  --outfile=/tmp/week-balance.mjs && node /tmp/week-balance.mjs
+```
+
+It prints four weeks of each canned plan (a read — you're looking for no plan that's comfortable
+*and* solvent *and* rising in mood), then asserts one hard invariant and exits non-zero if it
+breaks: **the board's burnout warning must equal what the week actually does.** Those are computed
+in two places and have drifted apart once already.
+
+It has earned its keep repeatedly: it caught five action days ending every week at full energy, mood
+ratcheting to 100 and pinning, every day landing in the middle band so the perception filter never
+fired, and a mood death-spiral with no way back.
 
 ### Checking the trait model
 

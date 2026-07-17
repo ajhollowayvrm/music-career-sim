@@ -1,31 +1,47 @@
 import { useState } from 'react'
 import { PILLARS, LADDER } from './game/pillars.ts'
-import { billedAs, type Character } from './game/character.ts'
-import { originById } from './game/origins.ts'
+import type { Character } from './game/character.ts'
 import CreationFlow from './components/creation/CreationFlow.tsx'
+import CareerLoop from './components/loop/CareerLoop.tsx'
 
 const REPO_URL = 'https://github.com/ajhollowayvrm/music-career-sim'
 
-type View = 'title' | 'creating' | 'created'
+type View = 'title' | 'creating' | 'playing'
+
+interface Run {
+  readonly character: Character
+  /** Seeds the run's RNG so a career is reproducible (see game/rng.ts). */
+  readonly seed: number
+}
 
 export default function App() {
   const [view, setView] = useState<View>('title')
-  const [character, setCharacter] = useState<Character | null>(null)
+  const [run, setRun] = useState<Run | null>(null)
 
   if (view === 'creating') {
     return (
       <CreationFlow
         onQuit={() => setView('title')}
-        onComplete={(c) => {
-          setCharacter(c)
-          setView('created')
+        onComplete={(character) => {
+          // The only place a seed is drawn. Everything downstream is pure.
+          setRun({ character, seed: Math.floor(Math.random() * 2 ** 31) })
+          setView('playing')
         }}
       />
     )
   }
 
-  if (view === 'created' && character) {
-    return <DayOne character={character} onRestart={() => setView('title')} />
+  if (view === 'playing' && run) {
+    return (
+      <CareerLoop
+        character={run.character}
+        seed={run.seed}
+        onQuit={() => {
+          setRun(null)
+          setView('title')
+        }}
+      />
+    )
   }
 
   return <Title onStart={() => setView('creating')} />
@@ -57,8 +73,8 @@ function Title({ onStart }: { onStart: () => void }) {
         </div>
         <p className="status">
           <span className="dot" aria-hidden="true" />
-          Pre-alpha — character creation works. The career it leads to doesn&apos;t exist yet, and
-          nothing is saved.
+          Pre-alpha — you can author a musician and play the weekly loop. Gigs, songs and bands
+          aren&apos;t built, and nothing is saved.
         </p>
       </header>
 
@@ -94,33 +110,3 @@ function Title({ onStart }: { onStart: () => void }) {
   )
 }
 
-/**
- * Where the daily loop (§5) will start. It doesn't exist yet, and this screen
- * says so rather than pretending — the scaffold stays honest.
- */
-function DayOne({ character, onRestart }: { character: Character; onRestart: () => void }) {
-  const origin = originById(character.originId)
-  return (
-    <div className="page">
-      <header className="hero">
-        <p className="eyebrow">day one</p>
-        <h1 className="title day-one-title">{billedAs(character)}</h1>
-        <p className="tagline">{origin.label}</p>
-        <p className="pitch">
-          You have {origin.keepsake.name.toLowerCase()}, no fans, and rent due. This is where the
-          daily loop would pick you up.
-        </p>
-        <p className="status">
-          <span className="dot" aria-hidden="true" />
-          §5 The Daily Loop isn&apos;t built yet — this run ends here. Nothing is saved, so leaving
-          discards this person.
-        </p>
-        <div className="actions">
-          <button className="btn btn-ghost" onClick={onRestart}>
-            Back to the start
-          </button>
-        </div>
-      </header>
-    </div>
-  )
-}

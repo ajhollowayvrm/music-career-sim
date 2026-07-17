@@ -1045,3 +1045,367 @@ a {
     flex: 0 1 18rem;
   }
 }
+
+/* ============================================================
+   The weekly loop — BRIEF §5
+   Mobile-first: the base is the phone.
+   ============================================================ */
+
+/* Vitals: bars, never numbers (pillar 2). Money is the one exception — §12
+   makes it the game-over factor, so it has to be countable. */
+.vitals {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem max(1.25rem, var(--safe-left)) 0.6rem max(1.25rem, var(--safe-right));
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-raised);
+}
+
+.vital {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.vital-label {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.vital-track {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+  min-width: 2rem;
+}
+
+.vital-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.vital-fill.is-mood {
+  background: #7f9bd4;
+}
+
+.vital-fill.is-spent {
+  background: #c4553d;
+}
+
+.vital-money {
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.vital-money.is-broke,
+.is-broke {
+  color: #c4553d;
+}
+
+/* ---------- The week board ---------- */
+
+.board-head {
+  margin-bottom: 1.25rem;
+}
+
+.week {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.day-btn {
+  display: grid;
+  grid-template-columns: 2.6rem 1fr;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 0.15rem 0.75rem;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0.6rem 0.9rem;
+  text-align: left;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.day.is-spent .day-btn {
+  border-color: #5a2f26;
+}
+
+.day-name {
+  grid-row: 1 / 3;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.day-route {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.day-route.is-empty {
+  color: var(--text-dim);
+  font-weight: 400;
+  font-style: italic;
+}
+
+/* Projected energy at the end of this day — the reason to plan a week at all. */
+.day-energy {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.day-energy-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent-dim);
+  transition: width 0.25s ease;
+}
+
+.day-energy-fill.is-spent {
+  background: #c4553d;
+}
+
+.day-picker {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.5rem 0 0.2rem;
+}
+
+.pick {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: var(--tap);
+  padding: 0.5rem 0.9rem;
+  text-align: left;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.pick.is-on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--text);
+}
+
+.pick:active {
+  transform: scale(0.99);
+}
+
+.pick-cost {
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.pick-cost::after {
+  content: ' energy';
+  color: var(--text-dim);
+}
+
+.pick-rest {
+  border-style: dashed;
+}
+
+.board-warn,
+.board-note {
+  margin-top: 1.1rem;
+  font-size: 0.85rem;
+  text-wrap: pretty;
+}
+
+.board-warn {
+  padding: 0.75rem 0.9rem;
+  border-left: 2px solid #c4553d;
+  background: var(--bg-raised);
+  border-radius: 0 0.5rem 0.5rem 0;
+  color: var(--text);
+}
+
+.board-note {
+  color: var(--text-dim);
+}
+
+.board-clear {
+  margin-top: 0.9rem;
+  min-height: var(--tap);
+  padding: 0 0.2rem;
+  background: none;
+  border: 0;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.8rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.board-hint {
+  margin-top: 0.6rem;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  font-style: italic;
+  text-wrap: pretty;
+}
+
+/* ---------- Days resolving ---------- */
+
+.day-log {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+  margin: 1.25rem 0;
+}
+
+.log-entry {
+  display: grid;
+  grid-template-columns: 2.6rem 1fr;
+  gap: 0.15rem 0.75rem;
+  padding: 0.7rem 0.9rem;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  opacity: 0.55;
+}
+
+.log-entry.is-latest {
+  opacity: 1;
+  border-color: var(--accent-dim);
+}
+
+.log-entry.is-burnt {
+  border-color: #5a2f26;
+}
+
+.log-day {
+  grid-row: 1 / 3;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.log-route {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.log-report {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.resolve-actions {
+  display: flex;
+  margin-top: 1.5rem;
+}
+
+/* ---------- Week summary ---------- */
+
+.ledger {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+}
+
+.ledger-row,
+.ledger-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.9rem;
+  padding: 0.3rem 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger-row span:first-child {
+  color: var(--text-dim);
+}
+
+.ledger-in {
+  color: #6f9e6a;
+}
+
+.ledger-out {
+  color: #c4553d;
+}
+
+.ledger-row.is-net {
+  border-top: 1px solid var(--line);
+  margin-top: 0.4rem;
+  padding-top: 0.6rem;
+  font-weight: 700;
+}
+
+.ledger-total {
+  border-top: 1px solid var(--line);
+  margin-top: 0.4rem;
+  padding-top: 0.6rem;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.summary-read {
+  padding: 0.9rem 1rem;
+  border-left: 2px solid var(--accent);
+  background: var(--bg-raised);
+  border-radius: 0 0.5rem 0.5rem 0;
+  font-size: 0.95rem;
+  font-style: italic;
+  text-wrap: pretty;
+}
+
+@media (min-width: 48rem) {
+  .board,
+  .resolve,
+  .summary {
+    max-width: 34rem;
+    margin-inline: auto;
+  }
+
+  .vitals {
+    justify-content: center;
+  }
+
+  .vital {
+    max-width: 12rem;
+  }
+}
