@@ -103,6 +103,17 @@ export default function WeekSummary({ state, onNext }: Props) {
         </section>
       )}
 
+      {/* §14: a face stepped out of the crowd, or one turned on you. */}
+      {state.fanNews.length > 0 && (
+        <section className="week-events">
+          {state.fanNews.map((line, i) => (
+            <p key={i} className="week-event">
+              {line}
+            </p>
+          ))}
+        </section>
+      )}
+
       {/* §13: a run closed with stock still in the box — money you fronted and
           won't get back. The other half of the gamble. */}
       {state.lastDeadStock > 0 && (

@@ -153,6 +153,8 @@ export interface MerchWeekContext {
   readonly following: number
   /** A gig this week is a room full of buyers — the big multiplier (§13). */
   readonly gigScore: number | null
+  /** §14: collector superfans clear limited drops. Sum of their warmth. */
+  readonly collectorPower?: number
 }
 
 /**
@@ -189,8 +191,11 @@ export function weeklyMerchSales(
   const priceFactor = clamp(2 - priceRatio, 0.25, 1.25)
   demand *= drop.scarcity === 'limited' ? Math.max(priceFactor, 0.9) : priceFactor
 
-  // Scarcity sells hot: urgency now.
-  if (drop.scarcity === 'limited') demand *= 1.35
+  // Scarcity sells hot: urgency now, and §14's collectors clear scarce runs.
+  if (drop.scarcity === 'limited') {
+    demand *= 1.35
+    demand += (ctx.collectorPower ?? 0) * 6
+  }
 
   // Fades over the run.
   demand *= 1 / (1 + drop.weeksOut * 0.28)

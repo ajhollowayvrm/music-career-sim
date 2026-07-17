@@ -116,6 +116,20 @@ import {
   type MerchDrop,
   type Scarcity,
 } from './merch.ts'
+import {
+  ATTENTION_PER_WEEK,
+  backlashSwing,
+  collectorPower,
+  criticDrag,
+  crowdBump,
+  curatorAmplification,
+  driftFan,
+  evangelistFollowing,
+  makeSuperfan,
+  nurture,
+  superfanTargetCount,
+  type Superfan,
+} from './superfans.ts'
 
 /** Deducted every week — §12 will decide what happens when you can't pay it. */
 export const COST_OF_LIVING = 200
@@ -191,6 +205,12 @@ export interface LoopState {
   readonly lastMerchRevenue: number
   /** §13. Money left dead in the box on runs that closed this week (a loss). */
   readonly lastDeadStock: number
+  /** §14. Named faces inside the Following number — the people you can know. */
+  readonly superfans: readonly Superfan[]
+  /** §14. Attention spent tending fans this week. Finite — that's the mechanic. */
+  readonly attentionUsed: number
+  /** §14. Names of fans who emerged or curdled this week, for the summary. */
+  readonly fanNews: readonly string[]
   /** Everything you've ever written (§7). */
   readonly songs: readonly Song[]
   /** The song 'make music' days work on. Null = the bench is empty. */
@@ -269,6 +289,9 @@ export function initialLoopState(seed: number, originId?: OriginId): LoopState {
     nextDropId: 1,
     lastMerchRevenue: 0,
     lastDeadStock: 0,
+    superfans: [],
+    attentionUsed: 0,
+    fanNews: [],
     songs: [],
     activeSongId: null,
     nextSongId: 1,
@@ -345,6 +368,8 @@ export type LoopAction =
   | { type: 'buyGear'; catalogId: string }
   // §16
   | { type: 'chooseEvent'; choiceId: string }
+  // §14
+  | { type: 'nurtureFan'; fanId: number }
   // §13
   | {
       type: 'makeMerch'
@@ -387,10 +412,12 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       // resolving this day automatically — the whole point of a gig is that you
       // play it, not that it happens to you.
       if (state.booking && state.booking.dayIndex === dayIndex) {
+        // §14: a ride-or-die in the room lifts it before you play a note.
+        const fresh = newGig(venueById(state.booking.venueId), dayIndex, state.following)
         return {
           ...state,
           phase: 'gig',
-          gig: newGig(venueById(state.booking.venueId), dayIndex, state.following),
+          gig: { ...fresh, crowd: clamp(fresh.crowd + crowdBump(state.superfans), 0, CROWD_MAX) },
         }
       }
 
@@ -572,12 +599,17 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       // closes is money you fronted and won't get back. Kept as the player's,
       // not split (§13: it's your brand), unlike the door and the catalogue.
       const gigScore = state.lastGig ? state.lastGig.result.score : null
+      const collectors = collectorPower(state.superfans)
       let merchRevenue = 0
       let merchCred = 0
       let deadStock = 0
       const merchAfter = state.merch.map((drop) => {
         if (drop.closed) return drop
-        const { units, revenue } = weeklyMerchSales(drop, { following: state.following, gigScore })
+        const { units, revenue } = weeklyMerchSales(drop, {
+          following: state.following,
+          gigScore,
+          collectorPower: collectors,
+        })
         merchRevenue += revenue
         merchCred += merchCredDelta(drop)
         const aged = ageDrop(drop, units)
@@ -602,6 +634,34 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
             : state.chain.weeksRecovering,
       }
 
+      // §14: the people inside the number do their work, then the week cools the
+      // ones you didn't tend. Curators amplify the release reach; evangelists
+      // bring people; critics (fans you let curdle) bleed them away.
+      const curatorBoost = 1 + curatorAmplification(state.superfans)
+      const amplifiedFollowingGain = Math.round(dampenedFollowingGain * curatorBoost)
+      const fanFollowing = evangelistFollowing(state.superfans) - criticDrag(state.superfans)
+      const followingTotal = Math.max(0, state.following + amplifiedFollowingGain + fanFollowing)
+
+      const fanNews: string[] = []
+      let driftedFans = state.superfans.map((f) => {
+        const after = driftFan(f)
+        if (!f.critic && after.critic) fanNews.push(`${after.name} has turned on you.`)
+        return after
+      })
+
+      // New faces step out of the crowd as the number grows (§14).
+      const target = superfanTargetCount(followingTotal)
+      let sfRng = after.rng
+      let nextSfId = driftedFans.reduce((m, f) => Math.max(m, f.id), 0) + 1
+      while (driftedFans.length < target) {
+        const taken = driftedFans.map((f) => f.name)
+        const made = makeSuperfan(nextSfId, taken, sfRng)
+        driftedFans = [...driftedFans, made.fan]
+        fanNews.push(`${made.fan.name} has become a real fan — one of the ones you could actually know.`)
+        sfRng = made.rng
+        nextSfId += 1
+      }
+
       return {
         ...after.state,
         songs: aged,
@@ -614,13 +674,18 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         merch: merchAfter,
         lastMerchRevenue: merchRevenue,
         lastDeadStock: deadStock,
-        following: state.following + dampenedFollowingGain,
+        following: followingTotal,
         cred: clamp(state.cred + credGain + merchCred, 0, 1),
         mood: clamp(state.mood + chainWk.moodDelta, 0, 100),
         strain: strainNext,
         chain: chainNext,
-        lastFollowingGain: dampenedFollowingGain + state.days.reduce((s, d) => s + d.followingDelta, 0),
-        rng: after.rng,
+        superfans: driftedFans,
+        fanNews,
+        lastFollowingGain:
+          amplifiedFollowingGain +
+          fanFollowing +
+          state.days.reduce((s, d) => s + d.followingDelta, 0),
+        rng: sfRng,
       }
     }
 
@@ -652,6 +717,10 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         gig: null,
         // §16: this week's events have been read in the summary — start clean.
         eventLog: [],
+        // §14: a fresh week's attention, and last week's tending is spent.
+        attentionUsed: 0,
+        superfans: state.superfans.map((f) => ({ ...f, tendedThisWeek: false })),
+        fanNews: [],
       }
     }
 
@@ -705,6 +774,13 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       // from someone with no Cred betrays nobody.
       const back = rollBacklash(song, state.cred, rolled.rng)
 
+      // §14: your people move a backlash. Ride-or-dies defend you, softening the
+      // Cred hit; critics you let curdle pile on and sharpen it.
+      const swing = backlashSwing(state.superfans)
+      const backlashCost = back.backlash
+        ? BACKLASH_CRED_COST * clamp(1 - swing, 0.25, 1.75)
+        : 0
+
       return {
         ...state,
         rng: back.rng,
@@ -719,7 +795,7 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
               }
             : s,
         ),
-        cred: back.backlash ? clamp(state.cred - BACKLASH_CRED_COST, 0, 1) : state.cred,
+        cred: back.backlash ? clamp(state.cred - backlashCost, 0, 1) : state.cred,
         lastBacklash: back.backlash ? [...state.lastBacklash, song.title] : state.lastBacklash,
         // It's out; it can't be worked on any more.
         activeSongId: state.activeSongId === song.id ? null : state.activeSongId,
@@ -959,6 +1035,21 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         cred: clamp(state.cred + (fx.credDelta ?? 0), 0, 1),
         strain: applyStrain(state.strain, fx.strainDelta ?? 0),
         chain,
+      }
+    }
+
+    /* ---- §14 Superfans ----------------------------------------------- */
+
+    case 'nurtureFan': {
+      if (state.phase !== 'planning') return state
+      // §14: attention is finite. Spend it and it's gone until next week.
+      if (state.attentionUsed >= ATTENTION_PER_WEEK) return state
+      const fan = state.superfans.find((f) => f.id === action.fanId)
+      if (!fan || fan.tendedThisWeek) return state
+      return {
+        ...state,
+        superfans: state.superfans.map((f) => (f.id === fan.id ? nurture(f) : f)),
+        attentionUsed: state.attentionUsed + 1,
       }
     }
 
