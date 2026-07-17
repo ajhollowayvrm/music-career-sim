@@ -2200,6 +2200,30 @@ a {
   color: var(--text-dim);
 }
 
+/* ---------- Save tools on the title ---------- */
+
+.save-tools {
+  display: flex;
+  gap: 1.1rem;
+  margin-top: 1rem;
+}
+
+.link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.link-btn:hover {
+  color: var(--accent);
+}
+
 /* ============================================================
    The macro ladder — BRIEF §17
    ============================================================ */

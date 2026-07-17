@@ -13,7 +13,7 @@ not an idle clicker.
 
 **Pre-alpha, and playable.** Author a musician, plan your weeks, write songs, put them out, play them
 to a room, and find (or wreck) a band. The design document is complete and remains the source of
-truth; fourteen of its eighteen systems are built. Nothing is saved.
+truth; fourteen of its eighteen systems are built, and the run saves and resumes.
 
 | | |
 | --- | --- |
@@ -324,13 +324,15 @@ wrong — especially *numbers are felt, not shown*, which rules out surfacing ra
 
 ### Known gaps
 
-- **Saving and persistence: deferred by decision (2026-07-16).** Nothing is persisted — a reload
-  discards the run. This is a known, accepted state, not an oversight. When it's picked up, the two
-  questions are (a) durability: Safari can evict script-writable storage (localStorage/IndexedDB),
-  so an export/import save file is the honest mitigation, and (b) whether a run is one save slot or
-  many. The groundwork is already laid: every value in `src/game/` is a plain serializable object
-  with no class instances, `Date`, or functions, so persistence should be additive rather than a
-  refactor. **Keep it that way** — it's the whole reason deferring this is cheap.
+- **Saving and persistence: built (`src/game/save.ts`).** The run autosaves to localStorage on
+  every change and resumes from the title with **Continue**; a finished run clears the slot. It
+  landed as three lines exactly as the deferral gambled: every value in `src/game/` is a plain
+  serializable object with no class instances, `Date`, or functions, so a save is a straight
+  `JSON.stringify`, and a resumed run continues byte-identically because the RNG seed lives in the
+  state. **Keep game state plain data** — the day that breaks is the day this stops being trivial.
+  On durability, Safari can evict script-writable storage on iOS, so localStorage is the convenience
+  and an **export/import** save file (on the title) is the honest mitigation the player owns. One
+  slot per install, which fits a game about one life in music; a second is another key and a picker.
 - **State architecture: settled.** One plain state object behind a pure reducer, colocated with the
   system it belongs to (see `src/game/creation.ts`). React holds it via `useReducer`; the reducer
   itself imports nothing from React.

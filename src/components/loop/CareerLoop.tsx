@@ -1,8 +1,9 @@
-import { useReducer, useState } from 'react'
+import { useEffect, useReducer, useState } from 'react'
 import type { Character } from '../../game/character.ts'
 import { billedAs } from '../../game/character.ts'
-import { initialLoopState, loopReducer, workbench } from '../../game/loop.ts'
+import { initialLoopState, loopReducer, workbench, type LoopState } from '../../game/loop.ts'
 import { canPlayWeek } from '../../game/week.ts'
+import { clearRun, isRunOver, saveRun } from '../../game/save.ts'
 import WeekBoard, { VitalsBar } from './WeekBoard.tsx'
 import DayResolve from './DayResolve.tsx'
 import WeekSummary from './WeekSummary.tsx'
@@ -21,19 +22,29 @@ import GameOver from './GameOver.tsx'
 interface Props {
   character: Character
   seed: number
+  /** A saved run to resume, or undefined to start fresh from the seed. */
+  savedState?: LoopState
   onQuit: () => void
 }
 
 type Tab = 'week' | 'songs' | 'gigs' | 'band' | 'things' | 'merch' | 'fans' | 'career'
 
 /** §5 The Daily Loop: plan a week, watch it happen a day at a time, settle up. */
-export default function CareerLoop({ character, seed, onQuit }: Props) {
+export default function CareerLoop({ character, seed, savedState, onQuit }: Props) {
   // §11 seeds the origin's keepsake into the starting inventory, so the init
-  // needs the character — a lazy initializer threads it through the seed.
+  // needs the character — a lazy initializer threads it through the seed. A
+  // saved run is resumed verbatim instead.
   const [state, dispatch] = useReducer(loopReducer, seed, (s) =>
-    initialLoopState(s, character.originId),
+    savedState ?? initialLoopState(s, character.originId),
   )
   const [tab, setTab] = useState<Tab>('week')
+
+  // Autosave the run on every change — the state is small and plain, so this is
+  // cheap. A finished run clears the slot instead: you don't resume an ending.
+  useEffect(() => {
+    if (isRunOver(state)) clearRun()
+    else saveRun(character, state)
+  }, [state, character])
 
   const planning = state.phase === 'planning'
   const benchCount = workbench(state).length

@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { PILLARS, LADDER } from './game/pillars.ts'
 import type { Character } from './game/character.ts'
+import type { LoopState } from './game/loop.ts'
+import { exportSave, importSave, loadRun } from './game/save.ts'
 import CreationFlow from './components/creation/CreationFlow.tsx'
 import CareerLoop from './components/loop/CareerLoop.tsx'
 
@@ -12,6 +14,8 @@ interface Run {
   readonly character: Character
   /** Seeds the run's RNG so a career is reproducible (see game/rng.ts). */
   readonly seed: number
+  /** A resumed run's state, or undefined to start fresh. */
+  readonly savedState?: LoopState
 }
 
 export default function App() {
@@ -36,6 +40,7 @@ export default function App() {
       <CareerLoop
         character={run.character}
         seed={run.seed}
+        savedState={run.savedState}
         onQuit={() => {
           setRun(null)
           setView('title')
@@ -44,10 +49,49 @@ export default function App() {
     )
   }
 
-  return <Title onStart={() => setView('creating')} />
+  const resume = (character: Character, state: LoopState) => {
+    setRun({ character, seed: state.rng.seed, savedState: state })
+    setView('playing')
+  }
+
+  return (
+    <Title
+      onStart={() => setView('creating')}
+      onContinue={resume}
+      onImport={resume}
+    />
+  )
 }
 
-function Title({ onStart }: { onStart: () => void }) {
+/** Download the current save as a file the player keeps (see game/save.ts). */
+function downloadSave(character: Character, state: LoopState) {
+  const blob = new Blob([exportSave(character, state)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'from-the-bottom-up-save.json'
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+interface TitleProps {
+  onStart: () => void
+  onContinue: (character: Character, state: LoopState) => void
+  onImport: (character: Character, state: LoopState) => void
+}
+
+function Title({ onStart, onContinue, onImport }: TitleProps) {
+  // Read the autosave once, on render — cheap, and it decides whether Continue
+  // shows at all.
+  const saved = loadRun()
+
+  const handleImport = (file: File) => {
+    file.text().then((text) => {
+      const data = importSave(text)
+      if (data) onImport(data.character, data.state)
+    })
+  }
+
   return (
     <div className="page">
       <header className="hero">
@@ -64,17 +108,48 @@ function Title({ onStart }: { onStart: () => void }) {
           festivals for the next generation.
         </p>
         <div className="actions">
-          <button className="btn btn-primary" onClick={onStart}>
+          {saved && (
+            <button
+              className="btn btn-primary"
+              onClick={() => onContinue(saved.character, saved.state)}
+            >
+              Continue — week {saved.state.week}
+            </button>
+          )}
+          <button className={`btn ${saved ? 'btn-ghost' : 'btn-primary'}`} onClick={onStart}>
             New Career
           </button>
           <a className="btn btn-ghost" href={`${REPO_URL}/blob/main/docs/BRIEF.md`}>
             Read the design doc
           </a>
         </div>
+
+        {/* The save the player owns — the honest mitigation for storage that can
+            be evicted on iOS (see game/save.ts). */}
+        <div className="save-tools">
+          {saved && (
+            <button className="link-btn" onClick={() => downloadSave(saved.character, saved.state)}>
+              Export save
+            </button>
+          )}
+          <label className="link-btn">
+            Import save
+            <input
+              type="file"
+              accept="application/json,.json"
+              className="sr-only"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) handleImport(file)
+              }}
+            />
+          </label>
+        </div>
+
         <p className="status">
           <span className="dot" aria-hidden="true" />
           Pre-alpha — author a musician, plan your weeks, write songs, put them out, play them to a
-          room, and find (or wreck) a band. Nothing is saved.
+          room, find (or wreck) a band, and see it through to an ending. Your run saves as you play.
         </p>
       </header>
 
