@@ -36,7 +36,7 @@ setup, no teardown.
 
 ### Driving the creation flow fast
 
-Clicking 14 interview questions through individual tool calls is slow. `browser_evaluate` with real
+Clicking through the interview one tool call at a time is slow. `browser_evaluate` with real
 `.click()` calls drives the actual React handlers (this is still the real UI, not import-and-call):
 
 ```js
@@ -50,8 +50,12 @@ Clicking 14 interview questions through individual tool calls is slow. `browser_
 '.genre'                           // genre chips
 '.points'                          // points-left copy
 '.leaning-read'                    // the taste prose
-'[role=status]'                    // "Question 4 of 14. 3 answered."
+'.portrait-lines li'               // the trait prose on the confirm screen
+'[role=status]'                    // "Question 4 of 7. 3 answered."
 ```
+
+Reload between runs for a clean slate — chaining runs via "Back to the start" inside one
+`browser_evaluate` is where the driving scripts break.
 
 Typing into the name field needs React's value setter, not `input.value =`:
 
@@ -70,6 +74,20 @@ setter.call(input, 'Name'); input.dispatchEvent(new Event('input', { bubbles: tr
   `document.documentElement.scrollWidth > window.innerWidth` must be false.
 - **Safe areas.** `env()` is 0 in a desktop browser, so override the vars to simulate an iPhone:
   `:root{--safe-top:59px;--safe-bottom:34px}` — content must still clear both.
+
+### After touching the interview or traits
+
+Run the trait-range check — a trait that can't reach an extreme is invisible in play, because
+pillar 2 hides the numbers:
+
+```bash
+npx -y esbuild tools/trait-range.ts --bundle --platform=node --format=esm \
+  --outfile=/tmp/trait-range.mjs && node /tmp/trait-range.mjs
+```
+
+Then drive a deliberate **purist** run and a deliberate **sellout** run and read the portrait on the
+confirm screen. They must describe recognisably different people; if one pole reads blank, a trait
+has lost its range.
 
 ## Gotchas found the hard way
 

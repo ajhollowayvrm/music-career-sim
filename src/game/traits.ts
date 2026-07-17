@@ -43,6 +43,11 @@ const BASELINE = 0.5
  * How far one point of effect moves a trait. Tuned so a player who answers
  * consistently in one direction lands near — but not at — an extreme: the
  * interview should produce a person, not a maxed-out build.
+ *
+ * This is coupled to how many questions the interview has and to how the answer
+ * effects are spread. Change either and a trait can silently become unable to
+ * reach an extreme — which never shows up in play, because pillar 2 hides the
+ * numbers. `tools/trait-range.ts` is the check; run it after any such change.
  */
 const STEP = 0.05
 

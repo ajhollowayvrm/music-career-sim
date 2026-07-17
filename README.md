@@ -21,7 +21,14 @@ Pages deploy pipeline, and a title screen. **Nothing is playable.**
 | ✅ | Vite + React + TypeScript scaffold, GitHub Pages deploy on push to `main` |
 | ✅ | Installable iOS web app — offline-capable, safe-area aware |
 | ✅ | Title screen |
+| ✅ | **Character creation (§2)** — name, origin, a 7-question interview, talent + taste, confirm |
+| ⏳ | §5 The Daily Loop — next |
 | ⏳ | Everything else |
+
+The interview is **seven questions**. §2 rejects a five-question version as too shallow, so five is
+the floor; seven is AJ's call. The five topics the brief names by hand are fixed and not up for
+cutting — why you make music, the stage, a flaky bandmate, exposure, a brutal review. The two
+discretionary slots are the contract (the only real driver of Industry Trust) and the closer.
 
 ## The target platform
 
@@ -73,6 +80,21 @@ npm run preview    # serve the production build locally
 ```
 
 The dev server and preview both serve under the `/music-career-sim/` base path, not `/`.
+
+### Checking the trait model
+
+The interview is the only thing that authors personality, and pillar 2 hides the result — so a trait
+that can't reach an extreme is a bug you can never see in play. Run this after adding, cutting, or
+retuning any interview question:
+
+```bash
+npx -y esbuild tools/trait-range.ts --bundle --platform=node --format=esm \
+  --outfile=/tmp/trait-range.mjs && node /tmp/trait-range.mjs
+```
+
+It exits non-zero if any trait can no longer read high or low. It has already earned its keep: at
+seven questions, Integrity could only fall to 0.40 and so could never read low, which quietly broke
+"no right answers".
 
 ### Regenerating the app icons
 
