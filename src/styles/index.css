@@ -1860,6 +1860,31 @@ a {
   color: #c4553d;
 }
 
+/* Gear — BRIEF §10. The shop, and the signature a piece earns over time. */
+.item.is-shop.is-owned {
+  opacity: 0.6;
+}
+
+.item.is-signature {
+  border-left: 2px solid var(--accent);
+}
+
+.item-tag.is-signature {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.item-signature {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--accent);
+  text-wrap: pretty;
+}
+
+.song-btn.is-buy {
+  margin-top: 0.7rem;
+}
+
 /* ============================================================
    Live gigs — BRIEF §9
    ============================================================ */

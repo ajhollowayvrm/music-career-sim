@@ -1,4 +1,5 @@
 import type { LoopAction, LoopState } from '../../game/loop.ts'
+import { released } from '../../game/loop.ts'
 import {
   buyBackPriceOf,
   costOfLosing,
@@ -6,6 +7,7 @@ import {
   weeksToReclaim,
   type Item,
 } from '../../game/items.ts'
+import { GEAR_CATALOG, describeSignature, isSignature } from '../../game/gear.ts'
 
 interface Props {
   state: LoopState
@@ -29,6 +31,9 @@ export default function ItemsPanel({ state, dispatch }: Props) {
     .slice()
     .sort((a, b) => a.attachment - b.attachment)
   const pawned = state.inventory.filter((i) => i.status.kind === 'pawned')
+  const releasedCount = released(state).length
+  // §10: don't offer a piece you already own — the lift doesn't stack twice.
+  const ownedNames = new Set(state.inventory.map((i) => i.name))
 
   return (
     <div className="things">
@@ -55,10 +60,45 @@ export default function ItemsPanel({ state, dispatch }: Props) {
       {owned.length > 0 && (
         <ul className="items">
           {owned.map((item) => (
-            <OwnedItem key={item.id} item={item} dispatch={dispatch} />
+            <OwnedItem
+              key={item.id}
+              item={item}
+              signature={isSignature(item, state.week, releasedCount)}
+              dispatch={dispatch}
+            />
           ))}
         </ul>
       )}
+
+      {/* §10: the gear shop. Recording is where gear is the big lever, so this is
+          an investment in the quality of what you cut — never in Cred. */}
+      <section className="items-section">
+        <h3 className="items-heading">The shop</h3>
+        <p className="items-subhead">
+          Gear is the lever on your recordings, and nowhere else — a show is the player, not the
+          rig. It buys quality, never respect.
+        </p>
+        <ul className="items">
+          {GEAR_CATALOG.map((gear) => {
+            const have = ownedNames.has(gear.name)
+            const afford = state.money >= gear.price
+            return (
+              <li key={gear.catalogId} className={`item is-shop${have ? ' is-owned' : ''}`}>
+                <p className="item-name">{gear.name}</p>
+                <p className="item-desc">{gear.description}</p>
+                <button
+                  type="button"
+                  className="song-btn is-buy"
+                  disabled={have || !afford}
+                  onClick={() => dispatch({ type: 'buyGear', catalogId: gear.catalogId })}
+                >
+                  {have ? 'Owned' : afford ? `Buy · £${gear.price}` : `£${gear.price} (short)`}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      </section>
 
       {pawned.length > 0 && (
         <section className="items-section">
@@ -121,16 +161,26 @@ export default function ItemsPanel({ state, dispatch }: Props) {
 }
 
 /** A single thing you still own: sell it outright, or pawn it and keep the rope. */
-function OwnedItem({ item, dispatch }: { item: Item; dispatch: (action: LoopAction) => void }) {
+function OwnedItem({
+  item,
+  signature,
+  dispatch,
+}: {
+  item: Item
+  signature: boolean
+  dispatch: (action: LoopAction) => void
+}) {
   const warning = costOfLosing(item)
   return (
-    <li className={`item${item.giftedBy !== null ? ' is-gift' : ''}`}>
+    <li className={`item${item.giftedBy !== null ? ' is-gift' : ''}${signature ? ' is-signature' : ''}`}>
       <p className="item-name">
         {item.name}
+        {signature && <span className="item-tag is-signature">your sound</span>}
         {item.functional && <span className="item-tag">you use this</span>}
         {item.giftedBy !== null && <span className="item-tag is-gift">a gift</span>}
       </p>
       <p className="item-desc">{item.description}</p>
+      {signature && <p className="item-signature">{describeSignature(item)}</p>}
       {warning && <p className="item-warn">{warning}</p>}
       <div className="item-actions">
         <button type="button" className="song-btn" onClick={() => dispatch({ type: 'pawnItem', itemId: item.id })}>

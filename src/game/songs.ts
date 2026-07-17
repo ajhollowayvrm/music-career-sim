@@ -114,10 +114,18 @@ export function compositionCeiling(character: Character): number {
   return clamp(0.25 + weighted * 0.7, 0.25, 0.95)
 }
 
-/** Production has no gear lever yet — §10 owes this one. */
-export function productionCeiling(character: Character): number {
+/**
+ * Production talent sets the floor of the ceiling; gear is the big lever on top
+ * of it (§10). §7 always said this was where gear matters most — `gearBonus` is
+ * that promise paid: owned recording gear (see gear.ts) raises the cap here, so
+ * a modest producer with a real rig can out-record a better one making do, and
+ * selling the rig to make rent literally lowers the ceiling on what you cut next
+ * (§11's death spiral). Talent is free and permanent; gear is bought and can be
+ * lost — the tension §10 wants.
+ */
+export function productionCeiling(character: Character, gearBonus = 0): number {
   const weighted = character.talents.production / MAX_TALENT_AT_CREATION
-  return clamp(0.2 + weighted * 0.65, 0.2, 0.85)
+  return clamp(0.2 + weighted * 0.65 + gearBonus, 0.2, 0.95)
 }
 
 /**

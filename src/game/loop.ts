@@ -89,6 +89,7 @@ import {
   startingInventory,
   type Item,
 } from './items.ts'
+import { buyGear, gearById, gearRecordingBonus } from './gear.ts'
 
 /** Deducted every week — §12 will decide what happens when you can't pay it. */
 export const COST_OF_LIVING = 200
@@ -290,6 +291,8 @@ export type LoopAction =
   | { type: 'pawnItem'; itemId: number }
   | { type: 'reclaimItem'; itemId: number }
   | { type: 'buyBackItem'; itemId: number }
+  // §10
+  | { type: 'buyGear'; catalogId: string }
 
 export function loopReducer(state: LoopState, action: LoopAction): LoopState {
   switch (action.type) {
@@ -361,9 +364,15 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
               writingSessions: s.writingSessions + 1,
             }
           }
+          // §10: the recording ceiling reads the gear you own. Better rig, higher
+          // cap; sell the rig and the cap drops with it.
+          const prodCeiling = productionCeiling(
+            action.character,
+            gearRecordingBonus(state.inventory),
+          )
           return {
             ...s,
-            production: s.production + sessionGain(s.production, productionCeiling(action.character), result.quality),
+            production: s.production + sessionGain(s.production, prodCeiling, result.quality),
             recordingSessions: s.recordingSessions + 1,
           }
         })
@@ -745,6 +754,22 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         formerItems: done.former,
         inventory: [...state.inventory, done.item],
         money: state.money - done.cost,
+      }
+    }
+
+    /* ---- §10 Gear ---------------------------------------------------- */
+
+    case 'buyGear': {
+      if (state.phase !== 'planning') return state
+      const gear = gearById(action.catalogId)
+      // Buy what you can afford. §12: no credit — the shop takes cash you have.
+      if (!gear || state.money < gear.price) return state
+      const item = buyGear(gear, state.nextItemId, state.week)
+      return {
+        ...state,
+        inventory: [...state.inventory, item],
+        nextItemId: state.nextItemId + 1,
+        money: state.money - gear.price,
       }
     }
 

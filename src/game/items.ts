@@ -65,9 +65,21 @@ export interface Item {
   readonly attachment: number
   /**
    * Losing it sets your earning power back (§11's death spiral). Pure luxuries
-   * are false — they're only cash. §10 attaches the actual recording effect.
+   * are false — they're only cash. §10 makes this literal via recordingBonus.
    */
   readonly functional: boolean
+  /**
+   * §10: how much this piece raises the production ceiling (§7). Gear is the big
+   * recording lever; instruments help a little; luxuries not at all (0). This is
+   * what makes selling functional gear a real earning-power cut — the recordings
+   * you cut without it are worse.
+   */
+  readonly recordingBonus: number
+  /**
+   * §10: the week it entered your hands. Signature gear emerges from long
+   * ownership and use — this is how "over time" is measured.
+   */
+  readonly acquiredWeek: number
   /** §11: a gift. The bandmate's id, if this came from one of them. */
   readonly giftedBy: number | null
   readonly status: ItemStatus
@@ -97,12 +109,17 @@ export const moodCostOfLosing = (item: Item): number => Math.round(item.attachme
  * the ladder: high attachment, the last thing you'd let go.
  */
 const KEEPSAKE_ITEM: Readonly<
-  Record<OriginId, { category: ItemCategory; value: number; attachment: number; functional: boolean }>
+  Record<
+    OriginId,
+    { category: ItemCategory; value: number; attachment: number; functional: boolean; recordingBonus: number }
+  >
 > = {
-  choir_kid: { category: 'keepsake', value: 30, attachment: 0.95, functional: false },
-  garage_self_taught: { category: 'instrument', value: 140, attachment: 0.8, functional: true },
-  bedroom_producer: { category: 'gear', value: 320, attachment: 0.82, functional: true },
-  open_mic_lifer: { category: 'instrument', value: 180, attachment: 0.85, functional: true },
+  // The hymnal is precious, not gear: no recording lever, only morale (§7/§3).
+  choir_kid: { category: 'keepsake', value: 30, attachment: 0.95, functional: false, recordingBonus: 0 },
+  // An instrument helps the recording a little; a rig helps it a lot.
+  garage_self_taught: { category: 'instrument', value: 140, attachment: 0.8, functional: true, recordingBonus: 0.05 },
+  bedroom_producer: { category: 'gear', value: 320, attachment: 0.82, functional: true, recordingBonus: 0.11 },
+  open_mic_lifer: { category: 'instrument', value: 180, attachment: 0.85, functional: true, recordingBonus: 0.05 },
 }
 
 /**
@@ -111,7 +128,7 @@ const KEEPSAKE_ITEM: Readonly<
  * these costs you nothing but the thing itself, which is exactly why they go
  * first. Values total roughly two weeks of rent — a real but shallow buffer.
  */
-const LUXURIES: ReadonlyArray<Omit<Item, 'id' | 'status'>> = [
+const LUXURIES: ReadonlyArray<Omit<Item, 'id' | 'status' | 'acquiredWeek'>> = [
   {
     name: 'Games console',
     description: 'Barely touched since the writing took over. Someone would give you £120 for it tonight.',
@@ -119,6 +136,7 @@ const LUXURIES: ReadonlyArray<Omit<Item, 'id' | 'status'>> = [
     value: 120,
     attachment: 0.08,
     functional: false,
+    recordingBonus: 0,
     giftedBy: null,
   },
   {
@@ -128,6 +146,7 @@ const LUXURIES: ReadonlyArray<Omit<Item, 'id' | 'status'>> = [
     value: 90,
     attachment: 0.2,
     functional: false,
+    recordingBonus: 0,
     giftedBy: null,
   },
   {
@@ -137,6 +156,7 @@ const LUXURIES: ReadonlyArray<Omit<Item, 'id' | 'status'>> = [
     value: 75,
     attachment: 0.35,
     functional: false,
+    recordingBonus: 0,
     giftedBy: null,
   },
 ]
@@ -164,13 +184,15 @@ export function startingInventory(
       value: spec.value,
       attachment: spec.attachment,
       functional: spec.functional,
+      recordingBonus: spec.recordingBonus,
+      acquiredWeek: 1,
       giftedBy: null,
       status: { kind: 'owned' },
     })
   }
 
   for (const lux of LUXURIES) {
-    items.push({ ...lux, id: id++, status: { kind: 'owned' } })
+    items.push({ ...lux, id: id++, acquiredWeek: 1, status: { kind: 'owned' } })
   }
 
   return { items, nextItemId: id }
