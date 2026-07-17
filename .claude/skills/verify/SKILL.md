@@ -77,6 +77,16 @@ Clicking through the interview one tool call at a time is slow. `browser_evaluat
 '.standing'                        // the summary block: Following + Cred prose
 '.standing-gap'                    // the reach-vs-respect gap line (§6)
 '.backlash'                        // a release that read as selling out
+
+// Gigs (§9)
+'.venue' / '.venue-day'            // a room; its day buttons (booking)
+'.venue-locked'                    // why a room won't have you
+'.booked-line'                     // what's booked this week
+'.setlist-item'                    // act one: the set, in order
+'.genre' (inside .gig)             // the setlist picker reuses the chip class
+'.crowd-fill'                      // the meter — read style.width, never text
+'.beat'                            // act two: what just happened
+'.gig-event' / '.answer'           // an in-set event and its handlings
 ```
 
 Reload between runs for a clean slate — chaining runs via "Back to the start" inside one
@@ -128,6 +138,18 @@ block**, and that the count it warns with is the count the week delivers. Plan a
 with the character's Confidence — that's §3's perception filter, and it's the thing most likely to
 silently stop working.
 
+### After touching gigs (§9)
+
+**The one thing that must hold is that pacing changes the night.** Probe it headlessly by running
+`playSong` over the same songs in different orders — all-loud must score WORSE than
+loud/loud/breather/loud. The first cut failed this silently: the crowd hit the ceiling by song two,
+so fatigue never bit and every order scored the same. A broken version looks exactly like a working
+one from the UI.
+
+Also worth driving: a room you can't get into shows its reason (not hidden); the booked gig owns its
+day on the week board and that day can't be re-planned; and the crowd meter is a **bar**, never a
+number.
+
 ### After touching fame (§4)
 
 The fork is the thing to check, and it's slow to reach by hand — building real Cred takes ~30 weeks,
@@ -172,3 +194,7 @@ has lost its range.
   shown, every week. If you drive the reducer directly (the tools do), `finishWeek` is where the
   bills and catalog land; skip it and you measure a week that never paid rent.
 - Money is rendered with `formatMoney`, not `£{n}` — plain interpolation gives "£-59".
+- `.pick-cost` carries a ` energy` suffix via `::after` from the week board. Reusing it elsewhere
+  renders "Rent Day ▲ energy". Chip/marker classes are not free to borrow.
+- A gig day's `DayResult` uses `routeId: 'rest'` with a `routeLabel` override, because a gig isn't a
+  route. Read `d.routeLabel ?? route.short` or the log calls a gig "Rest".

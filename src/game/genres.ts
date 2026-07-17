@@ -27,6 +27,15 @@ export interface Genre {
   readonly id: string
   readonly label: string
   readonly axes: Leanings
+  /**
+   * How loud and driving it is, 0..1. NOT a taste axis — §2 defines exactly
+   * three of those and this isn't one of them. It exists because §9's setlist
+   * asks "where the loud ones go, where the crowd breathes", and loudness is
+   * simply not derivable from raw/roots/underground: lo-fi is not loud, and
+   * ambient and folk sit at opposite ends of taste while being equally quiet.
+   * Only the setlist reads this.
+   */
+  readonly intensity: number
 }
 
 const at = (rawPolished: number, rootsExperimental: number, undergroundMainstream: number): Leanings => ({
@@ -38,28 +47,28 @@ const at = (rawPolished: number, rootsExperimental: number, undergroundMainstrea
 // Positions are a judgement call, not a fact. They only ever matter relative to
 // each other and to a band's position, so internal consistency beats precision.
 export const GENRES: readonly Genre[] = [
-  { id: 'punk', label: 'Punk', axes: at(-0.9, -0.2, -0.8) },
-  { id: 'hardcore', label: 'Hardcore', axes: at(-0.95, 0.0, -0.85) },
-  { id: 'metal', label: 'Metal', axes: at(-0.4, 0.0, -0.3) },
-  { id: 'emo', label: 'Emo', axes: at(-0.4, -0.1, -0.2) },
-  { id: 'indie_rock', label: 'Indie Rock', axes: at(-0.3, 0.1, -0.3) },
-  { id: 'shoegaze', label: 'Shoegaze', axes: at(-0.2, 0.5, -0.5) },
-  { id: 'classic_rock', label: 'Classic Rock', axes: at(-0.2, -0.5, 0.4) },
-  { id: 'folk', label: 'Folk', axes: at(-0.5, -0.9, -0.3) },
-  { id: 'americana', label: 'Americana', axes: at(-0.4, -0.85, -0.2) },
-  { id: 'country', label: 'Country', axes: at(-0.1, -0.8, 0.5) },
-  { id: 'blues', label: 'Blues', axes: at(-0.45, -0.9, -0.1) },
-  { id: 'singer_songwriter', label: 'Singer-Songwriter', axes: at(-0.4, -0.65, -0.15) },
-  { id: 'jazz', label: 'Jazz', axes: at(0.0, 0.45, -0.25) },
-  { id: 'soul', label: 'Soul', axes: at(0.3, -0.55, 0.3) },
-  { id: 'funk', label: 'Funk', axes: at(0.2, -0.45, 0.2) },
-  { id: 'rnb', label: 'R&B', axes: at(0.7, -0.25, 0.6) },
-  { id: 'hip_hop', label: 'Hip-Hop', axes: at(0.4, -0.15, 0.6) },
-  { id: 'pop', label: 'Pop', axes: at(0.95, 0.05, 0.95) },
-  { id: 'electronic', label: 'Electronic', axes: at(0.7, 0.5, 0.25) },
-  { id: 'house_techno', label: 'House / Techno', axes: at(0.6, 0.3, -0.1) },
-  { id: 'ambient', label: 'Ambient', axes: at(0.35, 0.8, -0.6) },
-  { id: 'experimental', label: 'Experimental / Noise', axes: at(-0.7, 0.95, -0.9) },
+  { id: 'punk', label: 'Punk', axes: at(-0.9, -0.2, -0.8), intensity: 0.9 },
+  { id: 'hardcore', label: 'Hardcore', axes: at(-0.95, 0.0, -0.85), intensity: 1 },
+  { id: 'metal', label: 'Metal', axes: at(-0.4, 0.0, -0.3), intensity: 0.9 },
+  { id: 'emo', label: 'Emo', axes: at(-0.4, -0.1, -0.2), intensity: 0.6 },
+  { id: 'indie_rock', label: 'Indie Rock', axes: at(-0.3, 0.1, -0.3), intensity: 0.5 },
+  { id: 'shoegaze', label: 'Shoegaze', axes: at(-0.2, 0.5, -0.5), intensity: 0.45 },
+  { id: 'classic_rock', label: 'Classic Rock', axes: at(-0.2, -0.5, 0.4), intensity: 0.65 },
+  { id: 'folk', label: 'Folk', axes: at(-0.5, -0.9, -0.3), intensity: 0.15 },
+  { id: 'americana', label: 'Americana', axes: at(-0.4, -0.85, -0.2), intensity: 0.3 },
+  { id: 'country', label: 'Country', axes: at(-0.1, -0.8, 0.5), intensity: 0.35 },
+  { id: 'blues', label: 'Blues', axes: at(-0.45, -0.9, -0.1), intensity: 0.4 },
+  { id: 'singer_songwriter', label: 'Singer-Songwriter', axes: at(-0.4, -0.65, -0.15), intensity: 0.15 },
+  { id: 'jazz', label: 'Jazz', axes: at(0.0, 0.45, -0.25), intensity: 0.4 },
+  { id: 'soul', label: 'Soul', axes: at(0.3, -0.55, 0.3), intensity: 0.5 },
+  { id: 'funk', label: 'Funk', axes: at(0.2, -0.45, 0.2), intensity: 0.7 },
+  { id: 'rnb', label: 'R&B', axes: at(0.7, -0.25, 0.6), intensity: 0.45 },
+  { id: 'hip_hop', label: 'Hip-Hop', axes: at(0.4, -0.15, 0.6), intensity: 0.6 },
+  { id: 'pop', label: 'Pop', axes: at(0.95, 0.05, 0.95), intensity: 0.6 },
+  { id: 'electronic', label: 'Electronic', axes: at(0.7, 0.5, 0.25), intensity: 0.65 },
+  { id: 'house_techno', label: 'House / Techno', axes: at(0.6, 0.3, -0.1), intensity: 0.8 },
+  { id: 'ambient', label: 'Ambient', axes: at(0.35, 0.8, -0.6), intensity: 0.05 },
+  { id: 'experimental', label: 'Experimental / Noise', axes: at(-0.7, 0.95, -0.9), intensity: 0.5 },
 ]
 
 export const CENTRE: Leanings = at(0, 0, 0)

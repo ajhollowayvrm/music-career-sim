@@ -32,6 +32,11 @@ export type QualityBand = 'bad' | 'ok' | 'good'
 export interface DayResult {
   readonly dayIndex: number
   readonly routeId: RouteId
+  /**
+   * Overrides the route's name in the log. A gig night (§9) is a day like any
+   * other to the week, but it is not a route and calling it "Rest" is a lie.
+   */
+  readonly routeLabel?: string
   /** Hidden. Never render this. */
   readonly quality: number
   readonly band: QualityBand

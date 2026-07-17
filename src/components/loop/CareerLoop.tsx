@@ -7,6 +7,8 @@ import WeekBoard, { VitalsBar } from './WeekBoard.tsx'
 import DayResolve from './DayResolve.tsx'
 import WeekSummary from './WeekSummary.tsx'
 import SongsPanel from './SongsPanel.tsx'
+import GigsPanel from './GigsPanel.tsx'
+import GigNight from './GigNight.tsx'
 
 interface Props {
   character: Character
@@ -14,7 +16,7 @@ interface Props {
   onQuit: () => void
 }
 
-type Tab = 'week' | 'songs'
+type Tab = 'week' | 'songs' | 'gigs'
 
 /** §5 The Daily Loop: plan a week, watch it happen a day at a time, settle up. */
 export default function CareerLoop({ character, seed, onQuit }: Props) {
@@ -23,6 +25,18 @@ export default function CareerLoop({ character, seed, onQuit }: Props) {
 
   const planning = state.phase === 'planning'
   const benchCount = workbench(state).length
+
+  // §9 takes the whole screen — a gig is not a sidebar.
+  if (state.phase === 'gig') {
+    return (
+      <div className="creation">
+        <VitalsBar state={state} />
+        <main className="creation-body">
+          <GigNight state={state} character={character} dispatch={dispatch} />
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div className="creation">
@@ -58,6 +72,16 @@ export default function CareerLoop({ character, seed, onQuit }: Props) {
             Songs
             {benchCount > 0 && <span className="tab-badge">{benchCount}</span>}
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'gigs'}
+            className={`tab${tab === 'gigs' ? ' is-active' : ''}`}
+            onClick={() => setTab('gigs')}
+          >
+            Rooms
+            {state.booking && <span className="tab-badge">1</span>}
+          </button>
         </div>
       )}
 
@@ -66,6 +90,7 @@ export default function CareerLoop({ character, seed, onQuit }: Props) {
         {planning && tab === 'songs' && (
           <SongsPanel state={state} character={character} dispatch={dispatch} />
         )}
+        {planning && tab === 'gigs' && <GigsPanel state={state} dispatch={dispatch} />}
         {state.phase === 'resolving' && (
           <DayResolve
             state={state}

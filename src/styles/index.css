@@ -1665,3 +1665,303 @@ a {
 .backlash strong {
   color: var(--text);
 }
+
+/* ============================================================
+   Live gigs — BRIEF §9
+   ============================================================ */
+
+.day.is-gig .day-btn {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-raised));
+  cursor: default;
+}
+
+.day.is-gig .day-route {
+  color: var(--accent);
+}
+
+/* ---------- Booking ---------- */
+
+.booked {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-left: 2px solid var(--accent);
+  background: var(--bg-raised);
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
+.booked-line {
+  font-size: 0.9rem;
+}
+
+.venues {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.venue {
+  padding: 0.9rem 1rem;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+}
+
+.venue.is-locked {
+  opacity: 0.55;
+}
+
+.venue.is-booked {
+  border-color: var(--accent);
+}
+
+.venue-name {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.venue-blurb {
+  margin-top: 0.2rem;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  font-style: italic;
+  text-wrap: pretty;
+}
+
+.venue-facts {
+  margin-top: 0.4rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+}
+
+.venue-locked {
+  margin-top: 0.6rem;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-wrap: pretty;
+}
+
+.venue-needs {
+  color: var(--accent-dim);
+}
+
+.venue-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.7rem;
+}
+
+.venue-day {
+  flex: 1;
+  min-width: 2.6rem;
+  min-height: var(--tap);
+  border: 1px solid var(--line);
+  border-radius: 0.45rem;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.venue-day.is-on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #1a1206;
+  font-weight: 700;
+}
+
+.venue-day:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---------- The night ---------- */
+
+.gig-head {
+  margin-bottom: 1.25rem;
+}
+
+/* A bar, never a number — you feel a room, you don't read it. */
+.crowd {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+.crowd-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.crowd-track {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.crowd-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent-dim);
+  transition: width 0.45s ease, background 0.45s ease;
+}
+
+.crowd-fill.is-cold {
+  background: #4a4657;
+}
+
+.crowd-fill.is-hot {
+  background: var(--accent);
+}
+
+.gig-beats {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.beat {
+  padding: 0.7rem 0.9rem;
+  border-radius: 0.55rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  text-wrap: pretty;
+}
+
+.beat.is-choice,
+.beat.is-event {
+  color: var(--text-dim);
+  font-style: italic;
+  border-style: dashed;
+}
+
+/* §9's tracked persona: going against yourself is an event either way. */
+.beat.is-delighted {
+  border-color: var(--accent);
+  border-style: solid;
+  color: var(--text);
+}
+
+.beat.is-alienated {
+  border-color: #c4553d;
+  border-style: solid;
+  color: var(--text);
+}
+
+.gig-prompt,
+.gig-event {
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+  text-wrap: pretty;
+}
+
+.gig-event {
+  padding: 0.8rem 1rem;
+  border-left: 2px solid #c4553d;
+  background: var(--bg-raised);
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
+.gig-prompt {
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.65rem;
+}
+
+.handling-cost {
+  color: var(--accent);
+  font-size: 0.75rem;
+}
+
+/* ---------- The set ---------- */
+
+.setlist {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+  counter-reset: setlist;
+}
+
+.setlist-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+}
+
+.setlist-n {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 1rem;
+}
+
+.setlist-title {
+  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.setlist-tag {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+}
+
+.setlist-tag.is-loud {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+
+.setlist-drop {
+  width: var(--tap);
+  height: var(--tap);
+  margin: -0.5rem -0.4rem -0.5rem 0;
+  border: 0;
+  background: none;
+  color: var(--text-dim);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+/* Loud/quiet marker in the setlist picker. Its own class — .pick-cost carries a
+   ' energy' suffix from the week board. */
+.song-intensity {
+  font-size: 0.7rem;
+  color: var(--accent);
+  opacity: 0.8;
+}
+
+.genre.is-on .song-intensity {
+  color: inherit;
+}

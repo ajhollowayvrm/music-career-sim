@@ -40,7 +40,7 @@ export default function DayResolve({ state, onNext, onFinish }: Props) {
               className={`log-entry${isLatest ? ' is-latest' : ''}${d.burntOut ? ' is-burnt' : ''}`}
             >
               <span className="log-day">{DAYS[d.dayIndex]}</span>
-              <span className="log-route">{route.short}</span>
+              <span className="log-route">{d.routeLabel ?? route.short}</span>
               <p className="log-report">{d.report}</p>
             </li>
           )

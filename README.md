@@ -24,7 +24,8 @@ built. Nothing is saved.
 | ✅ | **The loop (§5)** — plan a week, watch it resolve a day at a time, settle up |
 | ✅ | **Songwriting & release (§7)** — author a song, write it, record it, put it out |
 | ✅ | **Fame (§4)** — Following vs Cred, the purist/populist fork, selling out and backlash |
-| ⏳ | §9 Live Gigs — the main source of Cred, and what Following is supposed to unlock |
+| ✅ | **Live gigs (§9)** — book a room, craft a set, play it; pacing, persona, disasters |
+| ⏳ | §8 The Band — the richest system left, and the other half of §7 and §9 |
 | ⏳ | Everything else |
 
 The interview is **seven questions**. §2 rejects a five-question version as too shallow, so five is
@@ -92,9 +93,43 @@ The fork is real, measured over 20 weeks from the same character:
 Selling out only costs you if you had something to sell: backlash needs a mainstream release **and**
 Cred above ~0.3. A pop record from a nobody betrays nobody, and rolls 0%.
 
-**Cred is deliberately slow and currently short of its main source.** §4 says it's built by paying
-dues at gigs, and §9 isn't built — so records and being in the scene get you known and no further.
-That's the honest gap. Raise the rates when gigs land, not before.
+**Cred is built by paying dues** (§4), and gigs (§9) are where. Records and being in the scene get
+you known; the rooms take you the rest of the way, and a blinding night in a small room is worth more
+standing than a flat one in a big one.
+
+### Live gigs (§9): two acts
+
+The strategist, then the performer. Book a room (gated by §4 — this is what Following was promised to
+unlock), craft a set, then play it song by song against a crowd-energy meter.
+
+**Pacing decides the night, and that's the easiest thing here to break.** Same four songs, order
+alone, at the back room:
+
+| Set | Curve | Score |
+| --- | --- | --- |
+| all loud | 60 → 63 → 60 → 56 | 0.58 — the room tires and goes backwards |
+| all quiet | 53 → 55 → 58 → 61 | 0.59 — never lifts |
+| peak early, dribble out | 60 → 63 → 60 → 63 | 0.62 |
+| loud, loud, breather, loud | 60 → 63 → 66 → 72 | 0.68 |
+| quiet open, build, close big | 53 → 62 → 65 → 75 | **0.69** |
+
+The first cut of this had a big lift and a warm opening: the crowd hit the ceiling by song two,
+fatigue never bit, and a set of nothing but bangers scored *identically* to a well-paced one. The
+constants in `gig.ts` (`FATIGUE_PER_INTENSITY`, `LOUD_SONG_COST`, `openingCrowd`) are tuned so
+fatigue outruns the lift — **re-probe them if you touch them**, because a broken version looks
+exactly like a working one.
+
+**There is no correct way to handle a disaster** — only a way that fits the room. §9: "some scenes
+expect a chaotic, poor reaction (à la Nirvana), so reacting 'badly' can be authentic and
+crowd-pleasing in the right room." Each venue has a `sceneRaw`, and handlings are scored against it:
+going feral in the back room (`sceneRaw -0.7`) is the gig; the same move on a support slot
+(`+0.3`) ends the tour.
+
+**The persona is tracked.** Your on-stage choices average into a register (composed ↔ feral) over
+your career, and once it's settled (six nights) a choice that breaks it is an event in itself —
+delightful or alienating, depending on whether the room wanted it.
+
+Gear is deliberately not read here. §9 is explicit: it's the player, not the gear.
 
 ### How a day reads
 

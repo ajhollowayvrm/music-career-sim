@@ -4,16 +4,21 @@
  * Shape: plan a week, then watch it happen a day at a time. The week is the
  * planning surface; the DAY is still the clock, exactly as §5 insists.
  *
+ * A booked gig (§9) takes its day and hands control to gig.ts, which is what the
+ * day-at-a-time clock was preserved for: a gig is something you play, not
+ * something that happens to you while the week resolves past it.
+ *
  * Deliberately NOT here, because other sections own them:
- *   §9  gigs — `Week.commitment` is the hook they'll hang on. Unpopulated: this
- *       loop has no business inventing gigs.
+ *   §8  the band — no bandmates, so no set-order arguments and no stamina to
+ *       manage. Gigs are solo.
  *   §12 the fail state — money moves, but going broke doesn't end anything yet.
- *   §16 events — nothing interrupts a week yet. The day-at-a-time resolution
- *       exists so that it can.
+ *   §16 events — nothing interrupts a WEEK yet. Gigs have their own in-set
+ *       events (§9 names them), but the engine that fires events into ordinary
+ *       days is still §16's.
  */
 
 import type { Character } from './character.ts'
-import { makeRng, type Rng } from './rng.ts'
+import { makeRng, next, nextRange, type Rng } from './rng.ts'
 import { resolveDay, type DayResult } from './resolve.ts'
 import type { RouteId } from './routes.ts'
 import {
@@ -33,6 +38,23 @@ import {
   rollBacklash,
 } from './fame.ts'
 import { clamp } from './traits.ts'
+import { NIGHTLY_RECOVERY } from './week.ts'
+import { VENUES, canPlay, venueById, type Venue } from './venues.ts'
+import {
+  CROWD_MAX,
+  GIG_EVENTS,
+  choicesFor,
+  handlingFit,
+  newGig,
+  personaBreak,
+  playSong,
+  playableSongs,
+  settleGig,
+  type GigBeat,
+  type GigEventId,
+  type GigResult,
+  type GigState,
+} from './gig.ts'
 import {
   DAYS_IN_WEEK,
   START_ENERGY,
@@ -47,16 +69,19 @@ export const STARTING_MONEY = 400
 export const STARTING_MOOD = 60
 
 /**
- * A commitment already on the calendar — a booked gig, mainly. §5 wants these
- * to create opportunity cost around them. §9 owns what actually happens; this
- * type is the seam, and stays empty until then.
+ * A gig on the calendar (§9), which is what §5 means by a scheduled commitment
+ * creating opportunity cost around it: the day is spoken for, and how you spend
+ * the days either side decides whether you turn up sharp or wrecked.
  */
-export interface Commitment {
+export interface Booking {
+  readonly venueId: string
   readonly dayIndex: number
-  readonly label: string
 }
 
-export type LoopPhase = 'planning' | 'resolving' | 'summary'
+/** A gig night costs you the day, like any other. */
+export const GIG_ENERGY = 20
+
+export type LoopPhase = 'planning' | 'resolving' | 'gig' | 'summary'
 
 export interface LoopState {
   readonly week: number
@@ -65,7 +90,17 @@ export interface LoopState {
   readonly mood: number
   readonly money: number
   readonly plan: WeekPlan
-  readonly commitments: readonly Commitment[]
+  /** §9. One gig a week, on a day you choose. */
+  readonly booking: Booking | null
+  /** The gig happening right now, if the week has reached it. */
+  readonly gig: GigState | null
+  /**
+   * §9's tracked persona: the running mean of the registers you choose on stage,
+   * -1 composed .. +1 feral, and how many nights it's built from. Going against
+   * it is an event; you can't break a habit you haven't formed.
+   */
+  readonly persona: number
+  readonly personaSamples: number
   /** Days resolved so far this week, in order. */
   readonly days: readonly DayResult[]
   /** Money taken by cost of living at the end of the week just played. */
@@ -86,6 +121,8 @@ export interface LoopState {
   readonly lastFollowingGain: number
   /** Titles of songs that triggered a backlash on release this week (§4). */
   readonly lastBacklash: readonly string[]
+  /** The gig just played, for the week summary. */
+  readonly lastGig: { readonly venueName: string; readonly result: GigResult } | null
   readonly rng: Rng
 }
 
@@ -97,7 +134,10 @@ export function initialLoopState(seed: number): LoopState {
     mood: STARTING_MOOD,
     money: STARTING_MONEY,
     plan: emptyPlan(),
-    commitments: [],
+    booking: null,
+    gig: null,
+    persona: 0,
+    personaSamples: 0,
     days: [],
     lastCostOfLiving: 0,
     songs: [],
@@ -108,6 +148,7 @@ export function initialLoopState(seed: number): LoopState {
     cred: STARTING_CRED,
     lastFollowingGain: 0,
     lastBacklash: [],
+    lastGig: null,
     rng: makeRng(seed),
   }
 }
@@ -138,6 +179,15 @@ export type LoopAction =
   | { type: 'callItWritten'; songId: number }
   | { type: 'releaseSong'; songId: number }
   | { type: 'abandonSong'; songId: number }
+  // §9
+  | { type: 'bookGig'; venueId: string; dayIndex: number }
+  | { type: 'cancelBooking' }
+  | { type: 'toggleSetlistSong'; songId: number }
+  | { type: 'startPerformance' }
+  | { type: 'playNextSong'; character: Character }
+  | { type: 'gigChoose'; choiceId: string }
+  | { type: 'gigHandle'; handlingId: string }
+  | { type: 'finishGig' }
 
 export function loopReducer(state: LoopState, action: LoopAction): LoopState {
   switch (action.type) {
@@ -161,6 +211,17 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       if (state.phase !== 'resolving') return state
       const dayIndex = state.days.length
       if (dayIndex >= DAYS_IN_WEEK) return state
+
+      // §9: the gig takes the day. Hand control to the two acts rather than
+      // resolving this day automatically — the whole point of a gig is that you
+      // play it, not that it happens to you.
+      if (state.booking && state.booking.dayIndex === dayIndex) {
+        return {
+          ...state,
+          phase: 'gig',
+          gig: newGig(venueById(state.booking.venueId), dayIndex, state.following),
+        }
+      }
 
       // An unplanned day is a rest day — §5: some days are nothing at all.
       const routeId: RouteId = state.plan[dayIndex] ?? 'rest'
@@ -260,6 +321,8 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         lastCatalogEarnings: 0,
         lastFollowingGain: 0,
         lastBacklash: [],
+        lastGig: null,
+        gig: null,
       }
 
     /* ---- §7 Songwriting ---------------------------------------------- */
@@ -337,6 +400,228 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         activeSongId: state.activeSongId === song.id ? null : state.activeSongId,
       }
     }
+
+    /* ---- §9 Live Gigs ------------------------------------------------ */
+
+    case 'bookGig': {
+      if (state.phase !== 'planning') return state
+      const venue = VENUES.find((v) => v.id === action.venueId)
+      if (!venue || !canPlay(venue, state.following, state.cred)) return state
+      if (playableSongs(state.songs).length === 0) return state
+      return { ...state, booking: { venueId: venue.id, dayIndex: action.dayIndex } }
+    }
+
+    case 'cancelBooking':
+      return state.phase === 'planning' ? { ...state, booking: null } : state
+
+    case 'toggleSetlistSong': {
+      const gig = state.gig
+      if (!gig || gig.stage !== 'setlist') return state
+      const venue = venueById(gig.venueId)
+      const on = gig.setlist.includes(action.songId)
+      if (!on && gig.setlist.length >= venue.slots) return state
+      return {
+        ...state,
+        gig: {
+          ...gig,
+          // Order is the decision (§9), so this appends rather than sorting —
+          // the sequence you build is the sequence you play.
+          setlist: on
+            ? gig.setlist.filter((id) => id !== action.songId)
+            : [...gig.setlist, action.songId],
+        },
+      }
+    }
+
+    case 'startPerformance': {
+      const gig = state.gig
+      if (!gig || gig.stage !== 'setlist' || gig.setlist.length === 0) return state
+      return { ...state, gig: { ...gig, stage: 'performing', awaitingSong: true } }
+    }
+
+    case 'playNextSong': {
+      const gig = state.gig
+      if (!gig || gig.stage !== 'performing' || !gig.awaitingSong) return state
+      const songId = gig.setlist[gig.played]
+      const song = songById(state, songId ?? -1)
+      if (!song) return state
+
+      const { outcome, rng } = playSong(
+        song,
+        gig.crowd,
+        gig.fatigue,
+        action.character,
+        state.energy,
+        state.mood,
+        state.rng,
+      )
+      const played = gig.played + 1
+      const curve = [...gig.curve, outcome.crowd]
+      const beats: GigBeat[] = [
+        ...gig.beats,
+        { kind: 'song', text: outcome.text, crowdAfter: outcome.crowd },
+      ]
+
+      // Last song — the set is done.
+      if (played >= gig.setlist.length) {
+        return {
+          ...state,
+          rng,
+          gig: {
+            ...gig,
+            played,
+            crowd: outcome.crowd,
+            fatigue: outcome.fatigue,
+            curve,
+            beats,
+            stage: 'result',
+            awaitingSong: false,
+          },
+        }
+      }
+
+      // Between songs: sometimes the night has other ideas (§9).
+      const eventRoll = next(rng)
+      const eventIds: GigEventId[] = ['heckler', 'amp', 'booker']
+      const pick = nextRange(eventRoll.rng, 0, eventIds.length)
+      const fires = eventRoll.value < 0.22
+
+      return {
+        ...state,
+        rng: fires ? pick.rng : eventRoll.rng,
+        gig: {
+          ...gig,
+          played,
+          crowd: outcome.crowd,
+          fatigue: outcome.fatigue,
+          curve,
+          beats,
+          awaitingSong: false,
+          event: fires ? (eventIds[Math.floor(pick.value)] ?? 'heckler') : null,
+        },
+      }
+    }
+
+    case 'gigChoose': {
+      const gig = state.gig
+      if (!gig || gig.stage !== 'performing' || gig.awaitingSong || gig.event) return state
+      const venue = venueById(gig.venueId)
+      const choice = choicesFor(venue).find((c) => c.id === action.choiceId)
+      if (!choice) return state
+      return applyBeat(state, gig, venue, choice.register, choice.label)
+    }
+
+    case 'gigHandle': {
+      const gig = state.gig
+      if (!gig || !gig.event) return state
+      const venue = venueById(gig.venueId)
+      const event = GIG_EVENTS[gig.event]
+      const handling = event.handlings.find((h) => h.id === action.handlingId)
+      if (!handling) return state
+      const after = applyBeat(state, gig, venue, handling.register, handling.label, handling.cost)
+      return {
+        ...after,
+        // §9: "a graceful recovery might gain fans but cost money."
+        money: state.money - (handling.cost ?? 0),
+        gig: after.gig ? { ...after.gig, event: null } : null,
+      }
+    }
+
+    case 'finishGig': {
+      const gig = state.gig
+      if (!gig || gig.stage !== 'result') return state
+      const venue = venueById(gig.venueId)
+      const { result, rng } = settleGig(venue, gig.curve, 0, state.rng)
+
+      // The gig IS the day — it takes the energy any other day would.
+      const energyAfter = clamp(state.energy - GIG_ENERGY + NIGHTLY_RECOVERY, 0, 100)
+
+      const dayResult: DayResult = {
+        dayIndex: gig.dayIndex,
+        // Not a route — a gig is its own thing. The label is what the log shows.
+        routeId: 'rest',
+        routeLabel: 'Gig',
+        quality: result.score,
+        band: result.score >= 0.66 ? 'good' : result.score >= 0.36 ? 'ok' : 'bad',
+        energyAfter,
+        moodAfter: clamp(state.mood + result.moodDelta, 0, 100),
+        moneyDelta: result.money,
+        followingDelta: result.followingGain,
+        credDelta: result.credGain,
+        burntOut: false,
+        report: `${venue.name}. ${result.read}`,
+      }
+
+      return {
+        ...state,
+        rng,
+        phase: 'resolving',
+        gig: { ...gig, result },
+        booking: null,
+        days: [...state.days, dayResult],
+        energy: energyAfter,
+        mood: dayResult.moodAfter,
+        money: state.money + result.money,
+        following: state.following + result.followingGain,
+        cred: clamp(state.cred + result.credGain, 0, 1),
+        lastGig: { venueName: venue.name, result },
+      }
+    }
+  }
+}
+
+/**
+ * A between-songs beat: the choice or the handling lands, the room reacts, and
+ * your persona takes another sample.
+ *
+ * §9's persona rule is applied here: a move that goes against how you normally
+ * play is an event in itself, and whether it's delightful or alienating is the
+ * room's call, not yours.
+ */
+function applyBeat(
+  state: LoopState,
+  gig: GigState,
+  venue: Venue,
+  register: number,
+  label: string,
+  _cost?: number,
+): LoopState {
+  const fit = handlingFit(register, venue)
+  const brk = personaBreak(register, state.persona, state.personaSamples, venue)
+
+  // The room decides. A fit of 1 is exactly what this room wanted.
+  let swing = (fit - 0.5) * 26
+  if (brk === 'delighted') swing += 14
+  if (brk === 'alienated') swing -= 18
+
+  const crowd = clamp(gig.crowd + swing, 0, CROWD_MAX)
+
+  const text =
+    brk === 'delighted'
+      ? `${label} Nobody has seen you do that before. They will talk about it.`
+      : brk === 'alienated'
+        ? `${label} That is not you, and the room can tell.`
+        : swing > 6
+          ? `${label} It lands.`
+          : swing < -6
+            ? `${label} It does not land.`
+            : label
+
+  const samples = state.personaSamples + 1
+  return {
+    ...state,
+    // Running mean — your style is what you actually keep doing.
+    persona: (state.persona * state.personaSamples + register) / samples,
+    personaSamples: samples,
+    gig: {
+      ...gig,
+      crowd,
+      awaitingSong: true,
+      beats: [
+        ...gig.beats,
+        { kind: gig.event ? 'event' : 'choice', text, crowdAfter: crowd, ...(brk ? { personaBreak: brk } : {}) },
+      ],
+    },
   }
 }
 

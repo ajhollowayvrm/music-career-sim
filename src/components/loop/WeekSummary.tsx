@@ -1,6 +1,7 @@
 import { isBurntOut } from '../../game/week.ts'
 import { formatMoney, released, weekEarnings, type LoopState } from '../../game/loop.ts'
 import { STARTING_CRED, describeCred, describeGap, formatFollowing } from '../../game/fame.ts'
+import { GigSummary } from './GigNight.tsx'
 
 interface Props {
   state: LoopState
@@ -70,6 +71,8 @@ export default function WeekSummary({ state, onNext }: Props) {
           {gap && <p className="standing-gap">{gap}</p>}
         </section>
       )}
+
+      <GigSummary state={state} />
 
       {/* §4: a move that read as selling out. */}
       {state.lastBacklash.map((title) => (

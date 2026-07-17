@@ -10,6 +10,7 @@ import {
 } from '../../game/week.ts'
 import { activeSong, formatMoney, type LoopAction, type LoopState } from '../../game/loop.ts'
 import { formatFollowing } from '../../game/fame.ts'
+import { venueById } from '../../game/venues.ts'
 
 interface Props {
   state: LoopState
@@ -57,18 +58,23 @@ export default function WeekBoard({ state, dispatch }: Props) {
           // happens to end low.
           const spent = doomed.has(i)
           const isOpen = openDay === i
+          // §9/§5: a booked gig owns its day. It shows here because the whole
+          // point of a scheduled commitment is the tension it puts on the days
+          // either side of it.
+          const gigHere = state.booking?.dayIndex === i ? venueById(state.booking.venueId) : null
 
           return (
-            <li key={day} className={`day${spent ? ' is-spent' : ''}`}>
+            <li key={day} className={`day${spent ? ' is-spent' : ''}${gigHere ? ' is-gig' : ''}`}>
               <button
                 type="button"
                 className="day-btn"
                 aria-expanded={isOpen}
+                disabled={!!gigHere}
                 onClick={() => setOpenDay(isOpen ? null : i)}
               >
                 <span className="day-name">{day}</span>
-                <span className={`day-route${route ? '' : ' is-empty'}`}>
-                  {route ? route.short : 'Rest'}
+                <span className={`day-route${route || gigHere ? '' : ' is-empty'}`}>
+                  {gigHere ? `♪ ${gigHere.name}` : route ? route.short : 'Rest'}
                 </span>
                 <span className="day-energy" aria-hidden="true">
                   <span
