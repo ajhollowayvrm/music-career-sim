@@ -13,7 +13,7 @@ not an idle clicker.
 
 **Pre-alpha, and playable.** Author a musician, plan your weeks, write songs, put them out, play them
 to a room, and find (or wreck) a band. The design document is complete and remains the source of
-truth; seven of its eighteen systems are built. Nothing is saved.
+truth; eight of its eighteen systems are built. Nothing is saved.
 
 | | |
 | --- | --- |
@@ -27,6 +27,7 @@ truth; seven of its eighteen systems are built. Nothing is saved.
 | ✅ | **Live gigs (§9)** — book a room, craft a set, play it; pacing, persona, disasters |
 | ✅ | **The band (§8)** — full agents, multi-faceted chemistry, the trap, emergent leadership |
 | ✅ | **Finances & the fail state (§12)** — rent, the one grace month, eviction ends the run |
+| ✅ | **Items & possessions (§11)** — the liquidation ladder: sell, pawn, buy back, forfeit |
 | ⏳ | §16 the events engine, §10 gear, §13 merch, §14 superfans, §15 awards |
 | ⏳ | §17 the macro ladder — the arc above all of it |
 

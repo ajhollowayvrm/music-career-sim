@@ -78,6 +78,17 @@ import {
   type WeekPlan,
 } from './week.ts'
 import { assessRent, isEvicted, type RentEvent } from './finances.ts'
+import type { OriginId } from './origins.ts'
+import {
+  buyBackItem,
+  expirePawns,
+  moodCostOfLosing,
+  pawnItem as pawnItemOp,
+  reclaimItem as reclaimItemOp,
+  sellItem as sellItemOp,
+  startingInventory,
+  type Item,
+} from './items.ts'
 
 /** Deducted every week — §12 will decide what happens when you can't pay it. */
 export const COST_OF_LIVING = 200
@@ -129,6 +140,14 @@ export interface LoopState {
   readonly graceWeeksLeft: number
   /** §12. What rent did in the week just played, for the summary to speak. */
   readonly lastRentEvent: RentEvent
+  /** §11. What you own — the safety net you hollow out to make rent. */
+  readonly inventory: readonly Item[]
+  /** §11. Things you've sold or let lapse at the pawnbroker — buy back at 3×. */
+  readonly formerItems: readonly Item[]
+  /** §11. Ids come from a counter, not Date/random — state stays serializable. */
+  readonly nextItemId: number
+  /** §11. Names of items a lapsed pawn window took this week, for the board. */
+  readonly pawnForfeited: readonly string[]
   /** Everything you've ever written (§7). */
   readonly songs: readonly Song[]
   /** The song 'make music' days work on. Null = the bench is empty. */
@@ -176,7 +195,10 @@ export interface Demand {
   readonly refuseText: string
 }
 
-export function initialLoopState(seed: number): LoopState {
+export function initialLoopState(seed: number, originId?: OriginId): LoopState {
+  // §11: the run starts with a keepsake (if we know the origin) and a few
+  // sellable luxuries — the safety net §12 lets you hollow out.
+  const { items, nextItemId } = startingInventory(originId, 1)
   return {
     week: 1,
     phase: 'planning',
@@ -192,6 +214,10 @@ export function initialLoopState(seed: number): LoopState {
     lastCostOfLiving: 0,
     graceWeeksLeft: 0,
     lastRentEvent: 'none',
+    inventory: items,
+    formerItems: [],
+    nextItemId,
+    pawnForfeited: [],
     songs: [],
     activeSongId: null,
     nextSongId: 1,
@@ -259,6 +285,11 @@ export type LoopAction =
   | { type: 'recruit'; mateId: number }
   | { type: 'leaveBand' }
   | { type: 'answerDemand'; accept: boolean }
+  // §11
+  | { type: 'sellItem'; itemId: number }
+  | { type: 'pawnItem'; itemId: number }
+  | { type: 'reclaimItem'; itemId: number }
+  | { type: 'buyBackItem'; itemId: number }
 
 export function loopReducer(state: LoopState, action: LoopAction): LoopState {
   switch (action.type) {
@@ -276,7 +307,8 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
 
     case 'playWeek':
       if (state.phase !== 'planning' || !canPlayWeek(state.plan)) return state
-      return { ...state, phase: 'resolving', days: [] }
+      // The board's pawn-forfeit notice has been read by now — clear it.
+      return { ...state, phase: 'resolving', days: [], pawnForfeited: [] }
 
     case 'advanceDay': {
       if (state.phase !== 'resolving') return state
@@ -455,12 +487,19 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       }
     }
 
-    case 'nextWeek':
+    case 'nextWeek': {
       if (state.phase !== 'summary') return state
+      // §11: a pawn window that lapsed over the turn forfeits the item — it goes
+      // to the sold pile, reclaimable only at the 3× buy-back now.
+      const nextWeekNo = state.week + 1
+      const lapsed = expirePawns(state.inventory, nextWeekNo)
       return {
         ...state,
-        week: state.week + 1,
+        week: nextWeekNo,
         phase: 'planning',
+        inventory: lapsed.inventory,
+        formerItems: [...state.formerItems, ...lapsed.forfeited],
+        pawnForfeited: lapsed.forfeited.map((i) => i.name),
         plan: emptyPlan(),
         days: [],
         lastCostOfLiving: 0,
@@ -473,6 +512,7 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         lastGig: null,
         gig: null,
       }
+    }
 
     /* ---- §7 Songwriting ---------------------------------------------- */
 
@@ -644,6 +684,67 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         band,
         demand: null,
         bandNews: [...state.bandNews, action.accept ? demand.acceptText : demand.refuseText],
+      }
+    }
+
+    /* ---- §11 Items & possessions ------------------------------------- */
+
+    case 'sellItem': {
+      // Managed between weeks, alongside everything else you plan (§5).
+      if (state.phase !== 'planning') return state
+      const item = state.inventory.find((i) => i.id === action.itemId)
+      if (!item) return state
+      const done = sellItemOp(state.inventory, action.itemId)
+      if (!done) return state
+
+      // §11: selling a gift wounds whoever gave it, if they're still around.
+      let band = state.band
+      let bandNews = state.bandNews
+      if (item.giftedBy !== null && band && band.members.some((m) => m.id === item.giftedBy)) {
+        band = nudgeOne(band, item.giftedBy, { friendship: -0.22, professionalTrust: -0.08 })
+        const giver = band.members.find((m) => m.id === item.giftedBy)
+        if (giver) bandNews = [...bandNews, `${giver.name.split(' ')[0]} gave you that. They know you sold it.`]
+      }
+
+      return {
+        ...state,
+        inventory: done.inventory,
+        formerItems: [...state.formerItems, done.sold],
+        money: state.money + done.cash,
+        // §3: attachment is the price you pay in yourself, not just cash.
+        mood: clamp(state.mood - moodCostOfLosing(item), 0, 100),
+        band,
+        bandNews,
+      }
+    }
+
+    case 'pawnItem': {
+      if (state.phase !== 'planning') return state
+      const done = pawnItemOp(state.inventory, action.itemId, state.week)
+      if (!done) return state
+      // Pawning is reversible, so it costs no morale — you haven't really let go.
+      return { ...state, inventory: done.inventory, money: state.money + done.cash }
+    }
+
+    case 'reclaimItem': {
+      if (state.phase !== 'planning') return state
+      const item = state.inventory.find((i) => i.id === action.itemId)
+      if (!item || item.status.kind !== 'pawned') return state
+      if (state.money < item.status.pawnPrice) return state
+      const done = reclaimItemOp(state.inventory, action.itemId)
+      if (!done) return state
+      return { ...state, inventory: done.inventory, money: state.money - done.cost }
+    }
+
+    case 'buyBackItem': {
+      if (state.phase !== 'planning') return state
+      const done = buyBackItem(state.formerItems, action.itemId)
+      if (!done || state.money < done.cost) return state
+      return {
+        ...state,
+        formerItems: done.former,
+        inventory: [...state.inventory, done.item],
+        money: state.money - done.cost,
       }
     }
 

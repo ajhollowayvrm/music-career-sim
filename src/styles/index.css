@@ -1751,6 +1751,116 @@ a {
 }
 
 /* ============================================================
+   Items & possessions — BRIEF §11
+   ============================================================ */
+
+.things-empty {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px dashed var(--line);
+  border-radius: 0.5rem;
+  color: var(--text-dim);
+  font-size: 0.92rem;
+  text-align: center;
+}
+
+.items {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.items-section {
+  margin-top: 1.6rem;
+}
+
+.items-heading {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  margin-bottom: 0.2rem;
+}
+
+.items-subhead {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-bottom: 0.7rem;
+}
+
+.item {
+  padding: 0.85rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: var(--bg-raised);
+}
+
+.item.is-gift {
+  border-left: 2px solid var(--accent-dim);
+}
+
+.item.is-pawned,
+.item.is-gone {
+  opacity: 0.85;
+}
+
+.item-name {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.item-tag {
+  font-weight: 500;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+  border-radius: 0.3rem;
+  padding: 0.05rem 0.35rem;
+}
+
+.item-tag.is-gift {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+
+.item-desc {
+  margin-top: 0.35rem;
+  font-size: 0.88rem;
+  color: var(--text-dim);
+  text-wrap: pretty;
+}
+
+.item-warn {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #c4553d;
+  text-wrap: pretty;
+}
+
+.item-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+}
+
+.item-reclaim {
+  margin: 0.35rem 0 0.6rem;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.item-reclaim.is-urgent {
+  color: #c4553d;
+}
+
+/* ============================================================
    Live gigs — BRIEF §9
    ============================================================ */
 

@@ -10,6 +10,7 @@ import SongsPanel from './SongsPanel.tsx'
 import GigsPanel from './GigsPanel.tsx'
 import GigNight from './GigNight.tsx'
 import BandPanel from './BandPanel.tsx'
+import ItemsPanel from './ItemsPanel.tsx'
 import GameOver from './GameOver.tsx'
 
 interface Props {
@@ -18,11 +19,15 @@ interface Props {
   onQuit: () => void
 }
 
-type Tab = 'week' | 'songs' | 'gigs' | 'band'
+type Tab = 'week' | 'songs' | 'gigs' | 'band' | 'things'
 
 /** §5 The Daily Loop: plan a week, watch it happen a day at a time, settle up. */
 export default function CareerLoop({ character, seed, onQuit }: Props) {
-  const [state, dispatch] = useReducer(loopReducer, seed, initialLoopState)
+  // §11 seeds the origin's keepsake into the starting inventory, so the init
+  // needs the character — a lazy initializer threads it through the seed.
+  const [state, dispatch] = useReducer(loopReducer, seed, (s) =>
+    initialLoopState(s, character.originId),
+  )
   const [tab, setTab] = useState<Tab>('week')
 
   const planning = state.phase === 'planning'
@@ -102,6 +107,19 @@ export default function CareerLoop({ character, seed, onQuit }: Props) {
                 findable only by chance. */}
             {state.demand && <span className="tab-badge is-urgent">!</span>}
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'things'}
+            className={`tab${tab === 'things' ? ' is-active' : ''}`}
+            onClick={() => setTab('things')}
+          >
+            Things
+            {/* A lapsed pawn or overdue rent both make the safety net urgent. */}
+            {(state.pawnForfeited.length > 0 || state.graceWeeksLeft > 0) && (
+              <span className="tab-badge is-urgent">!</span>
+            )}
+          </button>
         </div>
       )}
 
@@ -114,6 +132,7 @@ export default function CareerLoop({ character, seed, onQuit }: Props) {
         {planning && tab === 'band' && (
           <BandPanel state={state} character={character} dispatch={dispatch} />
         )}
+        {planning && tab === 'things' && <ItemsPanel state={state} dispatch={dispatch} />}
         {state.phase === 'resolving' && (
           <DayResolve
             state={state}
