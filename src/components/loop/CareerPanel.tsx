@@ -1,8 +1,16 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Character } from '../../game/character.ts'
 import { billedAs } from '../../game/character.ts'
 import { released, type LoopAction, type LoopState } from '../../game/loop.ts'
 import { ageForWeek, milestones, rebrandCost } from '../../game/career.ts'
+import {
+  SYNC_EVENT,
+  cloudConfigured,
+  formatCode,
+  getCode,
+  getSyncStatus,
+  type SyncStatus,
+} from '../../game/cloudSave.ts'
 
 interface Props {
   state: LoopState
@@ -116,6 +124,50 @@ export default function CareerPanel({ state, character, dispatch }: Props) {
           </button>
         )}
       </section>
+
+      {cloudConfigured() && <CloudStatus />}
     </div>
+  )
+}
+
+/** The recovery code and live sync state, in-run (see cloudSave.ts). */
+function CloudStatus() {
+  const code = getCode()
+  const [status, setStatus] = useState<SyncStatus>(getSyncStatus())
+  useEffect(() => {
+    const on = (e: Event) => setStatus((e as CustomEvent<SyncStatus>).detail)
+    window.addEventListener(SYNC_EVENT, on)
+    return () => window.removeEventListener(SYNC_EVENT, on)
+  }, [])
+
+  const label: Record<SyncStatus['state'], string> = {
+    idle: 'Cloud save ready',
+    syncing: 'Saving to the cloud…',
+    ok: 'Saved to the cloud',
+    offline: 'Offline — saved on this device',
+    error: status.message ?? 'Sync error',
+    conflict: 'This run changed on another device',
+  }
+
+  return (
+    <section className="career-section">
+      <h3 className="items-heading">Cloud save</h3>
+      <p className="cloud-status">
+        <span className={`cloud-dot is-${status.state}`} aria-hidden="true" />
+        {label[status.state]}
+      </p>
+      {code && (
+        <>
+          <p className="cloud-code-line">
+            <span className="cloud-label">Recovery code</span>
+            <code className="cloud-code">{formatCode(code)}</code>
+          </p>
+          <p className="cloud-hint">
+            Back this up. It's the only way to reach this save on another device or after your browser
+            clears its storage.
+          </p>
+        </>
+      )}
+    </section>
   )
 }

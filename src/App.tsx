@@ -1,8 +1,16 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { PILLARS, LADDER } from './game/pillars.ts'
 import type { Character } from './game/character.ts'
 import type { LoopState } from './game/loop.ts'
-import { exportSave, importSave, loadRun } from './game/save.ts'
+import { exportSave, importSave, loadRun, saveRun } from './game/save.ts'
+import {
+  cloudConfigured,
+  formatCode,
+  getCode,
+  hasCode,
+  reconcile,
+  setCode,
+} from './game/cloudSave.ts'
 import CreationFlow from './components/creation/CreationFlow.tsx'
 import CareerLoop from './components/loop/CareerLoop.tsx'
 
@@ -21,6 +29,22 @@ interface Run {
 export default function App() {
   const [view, setView] = useState<View>('title')
   const [run, setRun] = useState<Run | null>(null)
+  // Bumped after a cloud reconcile writes a fresher save locally, so the title
+  // re-reads it and Continue reflects the run that actually came down.
+  const [reload, setReload] = useState(0)
+
+  // On boot, if the cloud is ahead of what's local, pull it down before the
+  // player can pick Continue. Runs once; the local autosave takes over in-game.
+  useEffect(() => {
+    if (!cloudConfigured() || !hasCode()) return
+    const local = loadRun()
+    void reconcile(local?.character ?? null, local?.state ?? null).then((cloud) => {
+      if (cloud) {
+        saveRun(cloud.character, cloud.state)
+        setReload((n) => n + 1)
+      }
+    })
+  }, [])
 
   if (view === 'creating') {
     return (
@@ -54,11 +78,22 @@ export default function App() {
     setView('playing')
   }
 
+  // A code entered from another device: adopt it, pull that slot, show Continue.
+  const syncCode = (code: string) => {
+    setCode(code)
+    void reconcile(null, null).then((cloud) => {
+      if (cloud) saveRun(cloud.character, cloud.state)
+      setReload((n) => n + 1)
+    })
+  }
+
   return (
     <Title
+      key={reload}
       onStart={() => setView('creating')}
       onContinue={resume}
       onImport={resume}
+      onSyncCode={syncCode}
     />
   )
 }
@@ -78,9 +113,10 @@ interface TitleProps {
   onStart: () => void
   onContinue: (character: Character, state: LoopState) => void
   onImport: (character: Character, state: LoopState) => void
+  onSyncCode: (code: string) => void
 }
 
-function Title({ onStart, onContinue, onImport }: TitleProps) {
+function Title({ onStart, onContinue, onImport, onSyncCode }: TitleProps) {
   // Read the autosave once, on render — cheap, and it decides whether Continue
   // shows at all.
   const saved = loadRun()
@@ -146,6 +182,9 @@ function Title({ onStart, onContinue, onImport }: TitleProps) {
           </label>
         </div>
 
+        {/* Cloud save — the recovery code that follows a run across devices. */}
+        {cloudConfigured() && <CloudPanel onSyncCode={onSyncCode} />}
+
         <p className="status">
           <span className="dot" aria-hidden="true" />
           Pre-alpha — author a musician, plan your weeks, write songs, put them out, play them to a
@@ -181,6 +220,73 @@ function Title({ onStart, onContinue, onImport }: TitleProps) {
           Design: AJ · Systems &amp; prototyping: Claude · <a href={REPO_URL}>source</a>
         </p>
       </footer>
+    </div>
+  )
+}
+
+/**
+ * Cloud save on the title: your recovery code (once a run has created one), to
+ * back up and to type on another device. Recovery-code identity — no account, no
+ * password. Only rendered when a backend is configured (SYNC_URL set).
+ */
+function CloudPanel({ onSyncCode }: { onSyncCode: (code: string) => void }) {
+  const code = getCode()
+  const [entry, setEntry] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [entering, setEntering] = useState(false)
+
+  const copy = () => {
+    if (!code) return
+    void navigator.clipboard?.writeText(formatCode(code)).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }
+
+  return (
+    <div className="cloud-panel">
+      {code && (
+        <p className="cloud-code-line">
+          <span className="cloud-label">Recovery code</span>
+          <code className="cloud-code">{formatCode(code)}</code>
+          <button className="link-btn" onClick={copy}>
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+        </p>
+      )}
+      {code && (
+        <p className="cloud-hint">
+          Back this up. It's the only way to reach this save on another device or after your browser
+          clears its storage.
+        </p>
+      )}
+
+      {entering ? (
+        <form
+          className="cloud-enter"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (entry.trim()) onSyncCode(entry)
+          }}
+        >
+          <input
+            className="input"
+            type="text"
+            value={entry}
+            onChange={(e) => setEntry(e.target.value)}
+            placeholder="Paste a recovery code"
+            autoCapitalize="characters"
+            autoComplete="off"
+          />
+          <button className="btn btn-primary" type="submit" disabled={!entry.trim()}>
+            Sync
+          </button>
+        </form>
+      ) : (
+        <button className="link-btn" onClick={() => setEntering(true)}>
+          Have a code from another device?
+        </button>
+      )}
     </div>
   )
 }

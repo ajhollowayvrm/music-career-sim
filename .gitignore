@@ -5,6 +5,10 @@ node_modules/
 dist/
 build/
 
+# SAM build artifacts (aws/)
+.aws-sam/
+aws/samconfig.toml
+
 # Logs
 *.log
 npm-debug.log*

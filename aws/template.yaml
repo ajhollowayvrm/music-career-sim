@@ -1,0 +1,58 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  From the Bottom Up — cloud save. A DynamoDB table holding one save per player and a
+  small Lambda (behind a Function URL) that reads/writes the caller's save. Identity is
+  a RECOVERY CODE, not an account: the client holds a high-entropy code, sends it as a
+  bearer token, and the item is keyed by sha256(code) — so the backend never stores the
+  code, and only someone holding it can touch that save. No Cognito, no sign-up, no PII.
+  Sized to stay inside the AWS ALWAYS-free tier: provisioned DynamoDB (5 of the free 25
+  RCU/WCU) and Lambda behind a Function URL (no API Gateway, whose free tier expires).
+
+Resources:
+  SavesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: music-career-sim-saves
+      # Provisioned, not on-demand: 25 RCU + 25 WCU are ALWAYS free account-wide, while
+      # on-demand is billed from the first request. 5/5 plus burst credit is plenty for
+      # debounced single-player saves and leaves room for other tables in the account.
+      BillingMode: PROVISIONED
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id # "save#<sha256(code)>" — one save per recovery code
+          KeyType: HASH
+
+  SaveFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: music-career-sim-save
+      Runtime: nodejs20.x
+      Handler: handler.handler
+      CodeUri: ./
+      MemorySize: 128
+      Timeout: 15 # a save is a single GetItem/PutItem — milliseconds
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref SavesTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SavesTable
+      FunctionUrlConfig:
+        AuthType: NONE # the recovery code in the Authorization header is the auth
+        Cors:
+          AllowOrigins: ['*']
+          AllowMethods: ['GET', 'PUT']
+          AllowHeaders: ['content-type', 'authorization']
+
+Outputs:
+  FunctionUrl:
+    Description: SYNC_URL for src/game/syncConfig.ts
+    Value: !GetAtt SaveFnUrl.FunctionUrl
+  TableName:
+    Value: !Ref SavesTable

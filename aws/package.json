@@ -1,0 +1,8 @@
+{
+  "name": "music-career-sim-save-fn",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Lambda for From the Bottom Up cloud save. Zero dependencies: @aws-sdk/client-dynamodb comes with the Node 20 runtime, and the recovery-code hash is node:crypto.",
+  "dependencies": {}
+}

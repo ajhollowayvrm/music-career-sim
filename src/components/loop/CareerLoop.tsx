@@ -1,9 +1,10 @@
-import { useEffect, useReducer, useState } from 'react'
+import { useEffect, useReducer, useRef, useState } from 'react'
 import type { Character } from '../../game/character.ts'
 import { billedAs } from '../../game/character.ts'
 import { initialLoopState, loopReducer, workbench, type LoopState } from '../../game/loop.ts'
 import { canPlayWeek } from '../../game/week.ts'
 import { clearRun, isRunOver, saveRun } from '../../game/save.ts'
+import { cloudConfigured, ensureCode, markLocalChange, pushCloud } from '../../game/cloudSave.ts'
 import WeekBoard, { VitalsBar } from './WeekBoard.tsx'
 import DayResolve from './DayResolve.tsx'
 import WeekSummary from './WeekSummary.tsx'
@@ -41,9 +42,21 @@ export default function CareerLoop({ character, seed, savedState, onQuit }: Prop
 
   // Autosave the run on every change — the state is small and plain, so this is
   // cheap. A finished run clears the slot instead: you don't resume an ending.
+  // With a backend configured, mirror the change to the cloud too, debounced so
+  // a burst of actions is one push (see cloudSave.ts).
+  const pushTimer = useRef<number | null>(null)
   useEffect(() => {
-    if (isRunOver(state)) clearRun()
-    else saveRun(character, state)
+    if (isRunOver(state)) {
+      clearRun()
+      return
+    }
+    saveRun(character, state)
+    if (cloudConfigured()) {
+      ensureCode()
+      markLocalChange()
+      if (pushTimer.current) clearTimeout(pushTimer.current)
+      pushTimer.current = window.setTimeout(() => void pushCloud(character, state), 1500)
+    }
   }, [state, character])
 
   const planning = state.phase === 'planning'
