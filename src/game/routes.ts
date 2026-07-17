@@ -73,8 +73,10 @@ export const ROUTES: readonly Route[] = [
     short: 'Make music',
     blurb: 'Write. Record. Get something down that did not exist this morning.',
     energy: 22,
+    // Writing leans on these; recording leans on Production instead. resolve.ts
+    // picks by the song's phase — this list is the writing case (§7).
     talents: ['lyrics', 'creativity', 'composition'],
-    owedBy: '§7 Songwriting',
+    owedBy: '§7 — built. Days here go into the song on the bench.',
   },
   {
     id: 'creator',

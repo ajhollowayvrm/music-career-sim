@@ -21,6 +21,7 @@ import { nextRange, type Rng } from './rng.ts'
 import { clamp } from './traits.ts'
 import { BURNOUT_THRESHOLD, MAX_ENERGY, NIGHTLY_RECOVERY, REST_RECOVERY } from './week.ts'
 import { MAX_TALENT_AT_CREATION } from './talents.ts'
+import { songFit, type Song } from './songs.ts'
 
 /** What a day paid. Money is thin on purpose — §12 owns the real economy. */
 export const DAY_JOB_PAY = 85
@@ -92,11 +93,13 @@ export interface DayInput {
   readonly energy: number
   readonly mood: number
   readonly character: Character
+  /** The song a 'make_music' day works on, if there is one (§7). */
+  readonly song?: Song | undefined
   readonly rng: Rng
 }
 
 export function resolveDay(input: DayInput): { result: DayResult; rng: Rng } {
-  const { dayIndex, routeId, energy, mood, character, rng } = input
+  const { dayIndex, routeId, energy, mood, character, song, rng } = input
   const route = routeById(routeId)
 
   const startedBurntOut = energy < BURNOUT_THRESHOLD
@@ -130,9 +133,29 @@ export function resolveDay(input: DayInput): { result: DayResult; rng: Rng } {
   const recover = routeId === 'rest' ? REST_RECOVERY : 0
   const energyAfter = clamp(energy - route.energy + recover + NIGHTLY_RECOVERY, 0, MAX_ENERGY)
 
+  // §3: "Genre mismatch — your fixed leaning versus the music you're actually
+  // making — lowers happiness." The first thing that makes the leanings authored
+  // back at creation cost or pay anything.
+  //
+  // Two deliberate asymmetries:
+  //
+  // Pivot at 0.6, not 0.5, so a mismatch hurts more than a match helps and only
+  // music genuinely close to your taste pays. Writing music you don't love comes
+  // out net-negative even though you spent the day on music, which is what §3
+  // asks for.
+  //
+  // Burnout suppresses the bonus entirely: when you are running on nothing, the
+  // pleasure of making the thing does not reach you. Without this the loop
+  // breaks — a burnt-out, bankrupt player writing music they love climbs to
+  // maximum mood, because joy out-earns the burnout penalty every day.
+  const fitMood =
+    song && routeId === 'make_music' && !startedBurntOut
+      ? (songFit(song, character) - 0.6) * 16
+      : 0
+
   const drift = (MOOD_BASELINE - mood) * MOOD_REVERSION
   const moodAfter = clamp(
-    mood + (MOOD_DELTA[routeId] ?? 0) + drift + (startedBurntOut ? -8 : 0),
+    mood + (MOOD_DELTA[routeId] ?? 0) + fitMood + drift + (startedBurntOut ? -8 : 0),
     0,
     100,
   )
@@ -149,7 +172,7 @@ export function resolveDay(input: DayInput): { result: DayResult; rng: Rng } {
       moodAfter,
       moneyDelta,
       burntOut: startedBurntOut,
-      report: buildReport(routeId, band, character, startedBurntOut, dayIndex),
+      report: buildReport(routeId, band, character, startedBurntOut, dayIndex, song),
     },
     rng: roll.rng,
   }
@@ -246,14 +269,36 @@ const BURNOUT_LINES: readonly string[] = [
   'Everything is taking twice as long as it should.',
 ]
 
+/**
+ * Recording is a different job from writing (§7's two dimensions), so it needs
+ * its own lines — "you got a verse down" is nonsense at a mixing desk.
+ */
+const RECORDING_OUTCOMES: Readonly<Record<QualityBand, string>> = {
+  bad: 'You tracked it and tracked it again. All of it sounds like a demo, because it is one.',
+  ok: 'You got a take down. It is not the one, but it is a take.',
+  good: 'You got the take. The one where it stops sounding like a recording of a song.',
+}
+
+/** A make-music day with nothing on the bench. §5: the day is still spent. */
+const NOTHING_TO_WORK_ON =
+  'You sat down to work and realised there was nothing on the bench. The day went anyway.'
+
 function buildReport(
   routeId: RouteId,
   band: QualityBand,
   character: Character,
   burntOut: boolean,
   dayIndex: number,
+  song: Song | undefined,
 ): string {
-  const what = OUTCOMES[routeId][band]
+  let what: string
+  if (routeId === 'make_music') {
+    if (!song) return NOTHING_TO_WORK_ON
+    what = song.phase === 'recording' ? RECORDING_OUTCOMES[band] : OUTCOMES.make_music[band]
+  } else {
+    what = OUTCOMES[routeId][band]
+  }
+
   const tail = burntOut
     ? BURNOUT_LINES[dayIndex % BURNOUT_LINES.length]
     : selfRead(band, character.traits.confidence)

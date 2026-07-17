@@ -1,11 +1,12 @@
-import { useReducer } from 'react'
+import { useReducer, useState } from 'react'
 import type { Character } from '../../game/character.ts'
 import { billedAs } from '../../game/character.ts'
-import { initialLoopState, loopReducer } from '../../game/loop.ts'
+import { initialLoopState, loopReducer, workbench } from '../../game/loop.ts'
 import { canPlayWeek } from '../../game/week.ts'
 import WeekBoard, { VitalsBar } from './WeekBoard.tsx'
 import DayResolve from './DayResolve.tsx'
 import WeekSummary from './WeekSummary.tsx'
+import SongsPanel from './SongsPanel.tsx'
 
 interface Props {
   character: Character
@@ -13,9 +14,15 @@ interface Props {
   onQuit: () => void
 }
 
+type Tab = 'week' | 'songs'
+
 /** §5 The Daily Loop: plan a week, watch it happen a day at a time, settle up. */
 export default function CareerLoop({ character, seed, onQuit }: Props) {
   const [state, dispatch] = useReducer(loopReducer, seed, initialLoopState)
+  const [tab, setTab] = useState<Tab>('week')
+
+  const planning = state.phase === 'planning'
+  const benchCount = workbench(state).length
 
   return (
     <div className="creation">
@@ -28,17 +35,50 @@ export default function CareerLoop({ character, seed, onQuit }: Props) {
 
       <VitalsBar state={state} />
 
+      {/* Songs are managed between weeks, not mid-week — once the week is
+          running you live with the plan you made. */}
+      {planning && (
+        <div className="loop-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'week'}
+            className={`tab${tab === 'week' ? ' is-active' : ''}`}
+            onClick={() => setTab('week')}
+          >
+            Week {state.week}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'songs'}
+            className={`tab${tab === 'songs' ? ' is-active' : ''}`}
+            onClick={() => setTab('songs')}
+          >
+            Songs
+            {benchCount > 0 && <span className="tab-badge">{benchCount}</span>}
+          </button>
+        </div>
+      )}
+
       <main className="creation-body">
-        {state.phase === 'planning' && <WeekBoard state={state} dispatch={dispatch} />}
+        {planning && tab === 'week' && <WeekBoard state={state} dispatch={dispatch} />}
+        {planning && tab === 'songs' && (
+          <SongsPanel state={state} character={character} dispatch={dispatch} />
+        )}
         {state.phase === 'resolving' && (
-          <DayResolve state={state} onNext={() => dispatch({ type: 'advanceDay', character })} />
+          <DayResolve
+            state={state}
+            onNext={() => dispatch({ type: 'advanceDay', character })}
+            onFinish={() => dispatch({ type: 'finishWeek' })}
+          />
         )}
         {state.phase === 'summary' && (
           <WeekSummary state={state} onNext={() => dispatch({ type: 'nextWeek' })} />
         )}
       </main>
 
-      {state.phase === 'planning' && (
+      {planning && tab === 'week' && (
         <footer className="creation-actions">
           <button
             type="button"

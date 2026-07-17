@@ -1409,3 +1409,180 @@ a {
     max-width: 12rem;
   }
 }
+
+/* ============================================================
+   Songs — BRIEF §7
+   ============================================================ */
+
+.loop-tabs {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.5rem max(1.25rem, var(--safe-left)) 0 max(1.25rem, var(--safe-right));
+}
+
+.loop-tabs .tab {
+  border: 1px solid var(--line);
+}
+
+.loop-tabs .tab.is-active {
+  border-color: var(--accent);
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.songs-head {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--text-dim);
+  margin: 1.75rem 0 0.75rem;
+}
+
+.songs-empty {
+  margin-top: 1.5rem;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  font-style: italic;
+  text-wrap: pretty;
+}
+
+.song-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.song-card {
+  padding: 0.9rem 1rem;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+}
+
+.song-card.is-active {
+  border-color: var(--accent-dim);
+}
+
+.song-card.is-out {
+  opacity: 0.9;
+}
+
+.song-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-wrap: pretty;
+}
+
+.song-meta {
+  font-size: 0.75rem;
+  color: var(--accent);
+  margin-top: 0.1rem;
+}
+
+.song-themes {
+  color: var(--text-dim);
+}
+
+.song-phase {
+  margin-top: 0.6rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.song-sessions {
+  font-weight: 400;
+  letter-spacing: 0.06em;
+}
+
+.song-bench-flag {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--accent-dim);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+}
+
+/* Prose, never a progress bar — pillar 2. */
+.song-read {
+  margin-top: 0.45rem;
+  font-size: 0.875rem;
+  color: var(--text);
+  font-style: italic;
+  text-wrap: pretty;
+}
+
+.song-earnings {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.song-earnings strong {
+  color: var(--text);
+}
+
+.song-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.8rem;
+}
+
+.song-btn {
+  min-height: var(--tap);
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.song-btn.is-go {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.song-btn.is-drop {
+  margin-left: auto;
+}
+
+.song-btn:active {
+  transform: scale(0.97);
+}
+
+/* ---------- New song form ---------- */
+
+.song-form-title {
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
+  margin-bottom: 1.25rem;
+}
+
+.song-form-actions {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 1.75rem;
+}
+
+.song-form .genres {
+  margin-bottom: 0.5rem;
+}
+
+.song-form .field-label {
+  margin-top: 1.25rem;
+}

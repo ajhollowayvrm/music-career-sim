@@ -11,9 +11,9 @@ not an idle clicker.
 
 ## Status
 
-**Pre-alpha, and playable.** You can author a musician and grind out weeks of a career. The design
-document is complete and remains the source of truth; two of its eighteen systems are built, and the
-routes you spend your week on mostly have nowhere to pay out yet. Nothing is saved.
+**Pre-alpha, and playable.** Author a musician, plan your weeks, write songs and put them out. The
+design document is complete and remains the source of truth; three of its eighteen systems are
+built. Nothing is saved.
 
 | | |
 | --- | --- |
@@ -22,7 +22,8 @@ routes you spend your week on mostly have nowhere to pay out yet. Nothing is sav
 | ✅ | Installable iOS web app — offline-capable, safe-area aware |
 | ✅ | **Character creation (§2)** — name, origin, a 7-question interview, talent + taste, confirm |
 | ✅ | **The loop (§5)** — plan a week, watch it resolve a day at a time, settle up |
-| ⏳ | §7 Songwriting — the likeliest next system; "make music" has nothing to hand its work to |
+| ✅ | **Songwriting & release (§7)** — author a song, write it, record it, put it out |
+| ⏳ | §4 Following/Cred or §9 Live Gigs — where songs are supposed to pay off |
 | ⏳ | Everything else |
 
 The interview is **seven questions**. §2 rejects a five-question version as too shallow, so five is
@@ -44,6 +45,28 @@ other way. Three shifts a week is the only solvent plan, and it's the one that g
 down; mood then feeds back into how good your music is. **No plan is a free win**, and that trade is
 the loop. It falls out of the constants in `week.ts` and `resolve.ts` rather than being scripted,
 which is exactly why it's easy to break — see the check below.
+
+### Songs (§7)
+
+A song's **identity** is the player's — title, genre, themes, all authored, none generated. Its
+**quality** is hidden and comes in §7's two dimensions: Composition (from Lyrics/Creativity, which
+§2 says drive quality more than raw playing) and Production (from Production talent; §10 owes this
+one a gear lever). Talent sets the ceiling, sessions only approach it with diminishing returns, so
+"call it written" is a real decision — and the song tells you in prose when there's nothing left to
+add, because a decision made blind is a coin toss, not a decision.
+
+This is also where **your leanings finally cost you something**. §3: "genre mismatch — your fixed
+leaning versus the music you're actually making — lowers happiness." Writing music you love is the
+best day in the game; writing music you don't is a net-negative day even though you spent it on
+music. The pivot is deliberately set so a mismatch hurts more than a match helps, and burnout
+suppresses the joy entirely — without that, a wrecked, bankrupt player writing music they love
+climbs to maximum mood.
+
+**Songs barely pay, on purpose.** A release earns £29–104 over its life against £200/wk of rent;
+even a viral spike is about one week's rent. That's not a tuning miss — early music *is* a rounding
+error, which is §12's whole tension. Songs currently pay in mood and pennies. Their real payoff is
+Following and Cred (§4), gigs (§9), and merch (§13) — none of which exist yet. **Don't inflate the
+money to compensate**; build §4.
 
 ### How a day reads
 

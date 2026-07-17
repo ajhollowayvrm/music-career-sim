@@ -73,8 +73,8 @@ function Title({ onStart }: { onStart: () => void }) {
         </div>
         <p className="status">
           <span className="dot" aria-hidden="true" />
-          Pre-alpha — you can author a musician and play the weekly loop. Gigs, songs and bands
-          aren&apos;t built, and nothing is saved.
+          Pre-alpha — author a musician, plan your weeks, write songs and put them out. Gigs and
+          bands aren&apos;t built, and nothing is saved.
         </p>
       </header>
 

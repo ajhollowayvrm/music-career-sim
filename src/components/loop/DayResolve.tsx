@@ -5,6 +5,7 @@ import type { LoopState } from '../../game/loop.ts'
 interface Props {
   state: LoopState
   onNext: () => void
+  onFinish: () => void
 }
 
 /**
@@ -18,10 +19,12 @@ interface Props {
  * pillar 2. What's on screen is what happened and how this particular person
  * read it (§3's perception filter, see resolve.ts).
  */
-export default function DayResolve({ state, onNext }: Props) {
+export default function DayResolve({ state, onNext, onFinish }: Props) {
   const done = state.days.length
   const current = state.days[done - 1]
   const remaining = DAYS.length - done
+  // All seven are on screen and read before the week closes.
+  const allSeen = remaining === 0
 
   return (
     <div className="resolve">
@@ -47,8 +50,12 @@ export default function DayResolve({ state, onNext }: Props) {
       {done === 0 && <p className="step-lede">The week starts.</p>}
 
       <div className="resolve-actions">
-        <button type="button" className="btn btn-primary btn-grow" onClick={onNext}>
-          {remaining > 0 ? `Next day — ${DAYS[done]}` : 'How the week went'}
+        <button
+          type="button"
+          className="btn btn-primary btn-grow"
+          onClick={allSeen ? onFinish : onNext}
+        >
+          {allSeen ? 'How the week went' : `Next day — ${DAYS[done]}`}
         </button>
       </div>
 

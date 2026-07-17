@@ -1,5 +1,5 @@
 import { isBurntOut } from '../../game/week.ts'
-import { weekEarnings, type LoopState } from '../../game/loop.ts'
+import { formatMoney, released, weekEarnings, type LoopState } from '../../game/loop.ts'
 
 interface Props {
   state: LoopState
@@ -14,7 +14,7 @@ interface Props {
  */
 export default function WeekSummary({ state, onNext }: Props) {
   const earned = weekEarnings(state)
-  const net = earned - state.lastCostOfLiving
+  const net = earned + state.lastCatalogEarnings - state.lastCostOfLiving
   const burntDays = state.days.filter((d) => d.burntOut).length
   const goodDays = state.days.filter((d) => d.band === 'good').length
 
@@ -24,9 +24,17 @@ export default function WeekSummary({ state, onNext }: Props) {
 
       <div className="ledger">
         <p className="ledger-row">
-          <span>Earned</span>
+          <span>Shifts</span>
           <span className="ledger-in">+£{earned}</span>
         </p>
+        {/* Only shown once there's a catalog — a £0 line before you've released
+            anything is just noise. */}
+        {(state.lastCatalogEarnings > 0 || released(state).length > 0) && (
+          <p className="ledger-row">
+            <span>Your songs</span>
+            <span className="ledger-in">+£{state.lastCatalogEarnings}</span>
+          </p>
+        )}
         <p className="ledger-row">
           <span>Rent &amp; living</span>
           <span className="ledger-out">−£{state.lastCostOfLiving}</span>
@@ -39,7 +47,7 @@ export default function WeekSummary({ state, onNext }: Props) {
         </p>
         <p className="ledger-total">
           <span>In your account</span>
-          <span className={state.money < 0 ? 'is-broke' : ''}>£{state.money}</span>
+          <span className={state.money < 0 ? 'is-broke' : ''}>{formatMoney(state.money)}</span>
         </p>
       </div>
 

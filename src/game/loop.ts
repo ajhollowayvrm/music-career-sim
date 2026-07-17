@@ -17,6 +17,14 @@ import { makeRng, type Rng } from './rng.ts'
 import { resolveDay, type DayResult } from './resolve.ts'
 import type { RouteId } from './routes.ts'
 import {
+  compositionCeiling,
+  newSong,
+  productionCeiling,
+  sessionGain,
+  type Song,
+} from './songs.ts'
+import { rollTrajectory, weeklyEarning } from './release.ts'
+import {
   DAYS_IN_WEEK,
   START_ENERGY,
   canPlayWeek,
@@ -53,6 +61,14 @@ export interface LoopState {
   readonly days: readonly DayResult[]
   /** Money taken by cost of living at the end of the week just played. */
   readonly lastCostOfLiving: number
+  /** Everything you've ever written (§7). */
+  readonly songs: readonly Song[]
+  /** The song 'make music' days work on. Null = the bench is empty. */
+  readonly activeSongId: number | null
+  /** Ids come from a counter, not Date/random — state stays serializable. */
+  readonly nextSongId: number
+  /** What the catalog paid in the week just played. */
+  readonly lastCatalogEarnings: number
   readonly rng: Rng
 }
 
@@ -67,16 +83,40 @@ export function initialLoopState(seed: number): LoopState {
     commitments: [],
     days: [],
     lastCostOfLiving: 0,
+    songs: [],
+    activeSongId: null,
+    nextSongId: 1,
+    lastCatalogEarnings: 0,
     rng: makeRng(seed),
   }
 }
+
+export const songById = (state: LoopState, id: number | null): Song | undefined =>
+  id === null ? undefined : state.songs.find((s) => s.id === id)
+
+export const activeSong = (state: LoopState): Song | undefined =>
+  songById(state, state.activeSongId)
+
+/** Songs still being made — the bench. */
+export const workbench = (state: LoopState): readonly Song[] =>
+  state.songs.filter((s) => s.phase !== 'released')
+
+export const released = (state: LoopState): readonly Song[] =>
+  state.songs.filter((s) => s.phase === 'released')
 
 export type LoopAction =
   | { type: 'setDay'; dayIndex: number; routeId: RouteId | null }
   | { type: 'clearPlan' }
   | { type: 'playWeek' }
   | { type: 'advanceDay'; character: Character }
+  | { type: 'finishWeek' }
   | { type: 'nextWeek' }
+  // §7
+  | { type: 'startSong'; title: string; genreId: string; themes: readonly string[] }
+  | { type: 'setActiveSong'; songId: number }
+  | { type: 'callItWritten'; songId: number }
+  | { type: 'releaseSong'; songId: number }
+  | { type: 'abandonSong'; songId: number }
 
 export function loopReducer(state: LoopState, action: LoopAction): LoopState {
   switch (action.type) {
@@ -103,6 +143,7 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
 
       // An unplanned day is a rest day — §5: some days are nothing at all.
       const routeId: RouteId = state.plan[dayIndex] ?? 'rest'
+      const song = activeSong(state)
 
       const { result, rng } = resolveDay({
         dayIndex,
@@ -110,28 +151,66 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         energy: state.energy,
         mood: state.mood,
         character: action.character,
+        song,
         rng: state.rng,
       })
 
-      const days = [...state.days, result]
-      const finished = days.length >= DAYS_IN_WEEK
+      // A day of music moves the song on the bench (§7). Talent sets the
+      // ceiling; the day's quality decides how much of the remaining headroom
+      // this session closes.
+      let songs = state.songs
+      if (routeId === 'make_music' && song && song.phase !== 'released') {
+        songs = state.songs.map((s) => {
+          if (s.id !== song.id) return s
+          if (s.phase === 'writing') {
+            return {
+              ...s,
+              composition: s.composition + sessionGain(s.composition, compositionCeiling(action.character), result.quality),
+              writingSessions: s.writingSessions + 1,
+            }
+          }
+          return {
+            ...s,
+            production: s.production + sessionGain(s.production, productionCeiling(action.character), result.quality),
+            recordingSessions: s.recordingSessions + 1,
+          }
+        })
+      }
 
+      // Resolving a day never ends the week. It used to, and that silently ate
+      // Sunday: the seventh day resolved and the screen flipped to the summary
+      // in the same tick, so its report was never read. Closing the week is
+      // 'finishWeek', which the player asks for once they've seen all seven.
       return {
         ...state,
         rng,
-        days,
+        days: [...state.days, result],
+        songs,
         energy: result.energyAfter,
         mood: result.moodAfter,
         money: state.money + result.moneyDelta,
-        // Bills land at the end of the week, all at once, against income that
-        // arrived in dribs — that lumpy-vs-steady squeeze is §12's whole point.
-        ...(finished
-          ? {
-              phase: 'summary' as const,
-              money: state.money + result.moneyDelta - COST_OF_LIVING,
-              lastCostOfLiving: COST_OF_LIVING,
-            }
-          : {}),
+      }
+    }
+
+    case 'finishWeek': {
+      if (state.phase !== 'resolving' || state.days.length < DAYS_IN_WEEK) return state
+
+      // The catalog pays, then the bills land. Income arrives in dribs against a
+      // lump sum — that squeeze is §12's whole point.
+      const catalogEarnings = state.songs.reduce((sum, s) => sum + weeklyEarning(s), 0)
+      const aged = state.songs.map((s) =>
+        s.phase === 'released'
+          ? { ...s, weeksOut: s.weeksOut + 1, earnings: s.earnings + weeklyEarning(s) }
+          : s,
+      )
+
+      return {
+        ...state,
+        songs: aged,
+        phase: 'summary',
+        money: state.money + catalogEarnings - COST_OF_LIVING,
+        lastCostOfLiving: COST_OF_LIVING,
+        lastCatalogEarnings: catalogEarnings,
       }
     }
 
@@ -144,10 +223,83 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         plan: emptyPlan(),
         days: [],
         lastCostOfLiving: 0,
+        lastCatalogEarnings: 0,
       }
+
+    /* ---- §7 Songwriting ---------------------------------------------- */
+
+    case 'startSong': {
+      if (state.phase !== 'planning') return state
+      if (!action.title.trim()) return state
+      const song = newSong(state.nextSongId, action.title, action.genreId, action.themes)
+      return {
+        ...state,
+        songs: [...state.songs, song],
+        // A new song goes straight on the bench — you started it to work on it.
+        activeSongId: song.id,
+        nextSongId: state.nextSongId + 1,
+      }
+    }
+
+    case 'setActiveSong': {
+      const song = songById(state, action.songId)
+      if (!song || song.phase === 'released') return state
+      return { ...state, activeSongId: action.songId }
+    }
+
+    case 'callItWritten': {
+      const song = songById(state, action.songId)
+      if (!song || song.phase !== 'writing') return state
+      // No minimum. Releasing a half-written song is a legitimate bad decision,
+      // and §5's whole posture is that the game warns rather than blocks.
+      return {
+        ...state,
+        songs: state.songs.map((s) => (s.id === song.id ? { ...s, phase: 'recording' } : s)),
+      }
+    }
+
+    case 'releaseSong': {
+      if (state.phase !== 'planning') return state
+      const song = songById(state, action.songId)
+      if (!song || song.phase !== 'recording') return state
+
+      const { trajectory, rng } = rollTrajectory(song, state.rng)
+      return {
+        ...state,
+        rng,
+        songs: state.songs.map((s) =>
+          s.id === song.id
+            ? { ...s, phase: 'released', releasedWeek: state.week, weeksOut: 0, trajectory }
+            : s,
+        ),
+        // It's out; it can't be worked on any more.
+        activeSongId: state.activeSongId === song.id ? null : state.activeSongId,
+      }
+    }
+
+    case 'abandonSong': {
+      if (state.phase !== 'planning') return state
+      const song = songById(state, action.songId)
+      if (!song || song.phase === 'released') return state
+      return {
+        ...state,
+        songs: state.songs.filter((s) => s.id !== song.id),
+        activeSongId: state.activeSongId === song.id ? null : state.activeSongId,
+      }
+    }
   }
 }
 
 /** Money earned across the week just played. */
 export const weekEarnings = (state: LoopState): number =>
   state.days.reduce((sum, d) => sum + d.moneyDelta, 0)
+
+/**
+ * Money, for display. The sign goes before the currency, not after it — plain
+ * interpolation gives "£-59", which reads as a typo rather than as debt.
+ *
+ * Money is the one number the game shows (§12 makes it the game-over factor, so
+ * it has to be countable); everything else is felt.
+ */
+export const formatMoney = (amount: number): string =>
+  `${amount < 0 ? '−' : ''}£${Math.abs(amount)}`

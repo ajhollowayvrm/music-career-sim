@@ -47,13 +47,31 @@ const character = finalizeCharacter({
   },
 })
 
+/**
+ * Songs matter to this probe now (§7): a 'make music' day with an empty bench is
+ * a WASTED day, and a day on a song you love swings mood far harder than the
+ * flat route value. Without a song on the bench these archetypes would quietly
+ * be measuring nothing happening.
+ *
+ * 'punk' matches the character's leanings, so this measures the good case —
+ * someone writing music they actually love.
+ */
+const withSong = (state: LoopState): LoopState =>
+  loopReducer(state, { type: 'startSong', title: 'Probe', genreId: 'punk', themes: [] })
+
 const playWeek = (state: LoopState, plan: (RouteId | null)[]): LoopState => {
   let s = state
+  // Keep something on the bench so make_music days do real work.
+  if (!s.songs.some((song) => song.phase !== 'released')) s = withSong(s)
   plan.forEach((r, i) => {
     s = loopReducer(s, { type: 'setDay', dayIndex: i, routeId: r })
   })
   s = loopReducer(s, { type: 'playWeek' })
   for (let i = 0; i < 7; i++) s = loopReducer(s, { type: 'advanceDay', character })
+  // finishWeek is separate from the last advanceDay so the player gets to read
+  // Sunday. It's also where the bills and the catalog land, so skipping it here
+  // would quietly measure a week that never paid rent.
+  s = loopReducer(s, { type: 'finishWeek' })
   return s
 }
 

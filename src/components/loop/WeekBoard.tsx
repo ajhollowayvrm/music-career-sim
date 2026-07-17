@@ -8,7 +8,7 @@ import {
   plannedActionCount,
   projectEnergy,
 } from '../../game/week.ts'
-import type { LoopAction, LoopState } from '../../game/loop.ts'
+import { activeSong, formatMoney, type LoopAction, type LoopState } from '../../game/loop.ts'
 
 interface Props {
   state: LoopState
@@ -33,6 +33,10 @@ export default function WeekBoard({ state, dispatch }: Props) {
   const doomed = new Set(burnoutDays(state.plan, state.energy))
   const actions = plannedActionCount(state.plan)
   const burnoutCount = doomed.size
+
+  const musicDaysWithNothingToWorkOn = activeSong(state)
+    ? 0
+    : state.plan.filter((r) => r === 'make_music').length
 
   return (
     <div className="board">
@@ -110,6 +114,15 @@ export default function WeekBoard({ state, dispatch }: Props) {
         })}
       </ol>
 
+      {/* A music day with an empty bench is a wasted day (§7). The board warns —
+          it doesn't stop you, same as everything else here. */}
+      {musicDaysWithNothingToWorkOn > 0 && (
+        <p className="board-warn">
+          You have {musicDaysWithNothingToWorkOn === 1 ? 'a day' : `${musicDaysWithNothingToWorkOn} days`}{' '}
+          down for making music and nothing on the bench. Start a song, or {musicDaysWithNothingToWorkOn === 1 ? 'that day goes' : 'those days go'} nowhere.
+        </p>
+      )}
+
       {burnoutCount > 0 ? (
         <p className="board-warn">
           This week runs you into the ground on {burnoutCount} {burnoutCount === 1 ? 'day' : 'days'}.
@@ -158,7 +171,9 @@ export function VitalsBar({ state }: { state: LoopState }) {
           <span className="vital-fill is-mood" style={{ width: `${state.mood}%` }} />
         </span>
       </span>
-      <span className={`vital-money${state.money < 0 ? ' is-broke' : ''}`}>£{state.money}</span>
+      <span className={`vital-money${state.money < 0 ? ' is-broke' : ''}`}>
+        {formatMoney(state.money)}
+      </span>
     </div>
   )
 }

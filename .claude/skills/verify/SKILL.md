@@ -62,15 +62,28 @@ Clicking through the interview one tool call at a time is slow. `browser_evaluat
 '.board-clear'                     // clear the week
 '.log-entry' / '.log-report'       // resolved days
 '.ledger-row' / '.summary-read'    // week summary
+
+// Songs (§7)
+'.loop-tabs .tab'                  // Week / Songs — ONLY rendered while planning
+'.songs .btn-primary'              // start a new song
+'.song-form-actions .btn-primary'  // confirm the new song
+'.song-card' / '.song-card.is-out' // bench / released
+'.song-read'                       // progress or fit prose
+'.song-btn'                        // call it written / put it out / bin it
+'.leaning-read'                    // fit prose in the new-song form
 ```
 
 Reload between runs for a clean slate — chaining runs via "Back to the start" inside one
 `browser_evaluate` is where the driving scripts break.
 
-Two traps when driving the week board: a day row **toggles**, so check
-`aria-expanded !== 'true'` before clicking it open or you'll close the one you just opened; and the
-resolve screen's button becomes "How the week went" on the last day, so a naive 7-click loop sails
-straight past the summary into the next week's board.
+Traps when driving the loop:
+
+- A day row **toggles** — check `aria-expanded !== 'true'` before clicking it open, or you'll close
+  the one you just opened.
+- Resolving a week takes **eight** clicks, not seven: seven days, then "How the week went". Loop
+  until `.ledger` exists rather than counting.
+- **The tabs only exist while planning.** If a script left you on the summary or mid-week,
+  `.loop-tabs` is absent and every tab query returns null. Click through to planning first.
 
 Typing into the name field needs React's value setter, not `input.value =`:
 
@@ -133,3 +146,8 @@ has lost its range.
   as a bug, not as exhaustion.
 - `npm run build 2>&1 | tail` reports **tail's** exit code, not tsc's. Redirect to a file and check
   `$?` or a type error looks like a green build.
+- Resolving a day and closing the week are separate actions on purpose. They were one, and the
+  seventh day resolved and flipped to the summary in the same tick — Sunday's report was never
+  shown, every week. If you drive the reducer directly (the tools do), `finishWeek` is where the
+  bills and catalog land; skip it and you measure a week that never paid rent.
+- Money is rendered with `formatMoney`, not `£{n}` — plain interpolation gives "£-59".
