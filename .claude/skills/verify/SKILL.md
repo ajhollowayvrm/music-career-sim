@@ -71,6 +71,12 @@ Clicking through the interview one tool call at a time is slow. `browser_evaluat
 '.song-read'                       // progress or fit prose
 '.song-btn'                        // call it written / put it out / bin it
 '.leaning-read'                    // fit prose in the new-song form
+
+// Fame (§4)
+'.vital-following'                 // the figure in the status bar
+'.standing'                        // the summary block: Following + Cred prose
+'.standing-gap'                    // the reach-vs-respect gap line (§6)
+'.backlash'                        // a release that read as selling out
 ```
 
 Reload between runs for a clean slate — chaining runs via "Back to the start" inside one
@@ -94,8 +100,11 @@ setter.call(input, 'Name'); input.dispatchEvent(new Event('input', { bubbles: tr
 
 ## What's worth checking
 
-- **No numbers on screen after creation** (pillar 2). Traits and leanings surface as prose only.
-  Talent pips at creation are the sanctioned exception (§2 asks for a point-spend).
+- **No numbers on screen after creation** (pillar 2). Traits, leanings, song quality and **Cred**
+  surface as prose only. Three sanctioned exceptions, each because the world genuinely counts it for
+  you: talent pips at creation (§2 asks for a point-spend), money (§12's game-over factor), and
+  Following (§4/§14 — an aggregate number every platform shows you). **Cred must never appear as a
+  number or a bar** — that's the whole asymmetry of §4.
 - **No `§n` refs in player-facing copy.** Brief references belong in comments. Quick check:
   `/§\d/.test(document.querySelector('.creation-body').innerText)` should be false.
 - **Tap targets ≥44px**, and no horizontal overflow:
@@ -118,6 +127,18 @@ block**, and that the count it warns with is the count the week delivers. Plan a
 2 music, 2 rest) and confirm no warning. Check the day reports carry a self-read clause that varies
 with the character's Confidence — that's §3's perception filter, and it's the thing most likely to
 silently stop working.
+
+### After touching fame (§4)
+
+The fork is the thing to check, and it's slow to reach by hand — building real Cred takes ~30 weeks,
+so drive the reducer in a scratch script rather than the browser for anything Cred-dependent
+(backlash especially). What must hold:
+
+- Creator grind → Following climbs fast, Cred bleeds → the gap line reads "More people know your
+  name than respect it."
+- Underground releases + network → Cred climbs, Following crawls → "The people who matter rate you."
+- Backlash fires **only** on a mainstream release **and** only with Cred to lose. A pop record from
+  a nobody must roll 0% — you cannot betray people who were never there.
 
 ### After touching the interview or traits
 

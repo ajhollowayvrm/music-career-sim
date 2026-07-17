@@ -85,7 +85,7 @@ export const ROUTES: readonly Route[] = [
     blurb: 'Film, cut, post, reply. The treadmill pays in reach, and it takes a toll.',
     energy: 20,
     talents: ['production', 'creativity'],
-    owedBy: '§6 Solo/Creator, §4 Following',
+    owedBy: '§4 — built. Fastest reach in the game; costs Cred every day. §6 owes the ceiling.',
   },
   {
     id: 'network',
@@ -94,7 +94,7 @@ export const ROUTES: readonly Route[] = [
     blurb: 'Be in the room. Talk to people. Some of them matter.',
     energy: 16,
     talents: ['stagePresence'],
-    owedBy: '§8 The Band, §14 Superfans',
+    owedBy: '§4 — built (slow Cred). §8 and §14 owe the people you meet.',
   },
   {
     id: 'apply_bands',

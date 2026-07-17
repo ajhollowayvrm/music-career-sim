@@ -25,6 +25,15 @@ import {
 } from './songs.ts'
 import { rollTrajectory, weeklyEarning } from './release.ts'
 import {
+  BACKLASH_CRED_COST,
+  STARTING_CRED,
+  STARTING_FOLLOWING,
+  credFromRelease,
+  followingFromRelease,
+  rollBacklash,
+} from './fame.ts'
+import { clamp } from './traits.ts'
+import {
   DAYS_IN_WEEK,
   START_ENERGY,
   canPlayWeek,
@@ -69,6 +78,14 @@ export interface LoopState {
   readonly nextSongId: number
   /** What the catalog paid in the week just played. */
   readonly lastCatalogEarnings: number
+  /** §4. Reach. Shown — the world counts it for you. */
+  readonly following: number
+  /** §4. Standing, 0..1. Never shown as a number. */
+  readonly cred: number
+  /** Reach gained in the week just played, for the summary. */
+  readonly lastFollowingGain: number
+  /** Titles of songs that triggered a backlash on release this week (§4). */
+  readonly lastBacklash: readonly string[]
   readonly rng: Rng
 }
 
@@ -87,6 +104,10 @@ export function initialLoopState(seed: number): LoopState {
     activeSongId: null,
     nextSongId: 1,
     lastCatalogEarnings: 0,
+    following: STARTING_FOLLOWING,
+    cred: STARTING_CRED,
+    lastFollowingGain: 0,
+    lastBacklash: [],
     rng: makeRng(seed),
   }
 }
@@ -189,6 +210,8 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         energy: result.energyAfter,
         mood: result.moodAfter,
         money: state.money + result.moneyDelta,
+        following: state.following + result.followingDelta,
+        cred: clamp(state.cred + result.credDelta, 0, 1),
       }
     }
 
@@ -198,6 +221,14 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       // The catalog pays, then the bills land. Income arrives in dribs against a
       // lump sum — that squeeze is §12's whole point.
       const catalogEarnings = state.songs.reduce((sum, s) => sum + weeklyEarning(s), 0)
+
+      // §4: what's out in the world also brings reach and standing, and which of
+      // the two depends on where the song sits on the underground↔mainstream
+      // axis. Mainstream reaches further; underground earns respect. Same songs,
+      // opposite currencies — that's the fork.
+      const followingGain = state.songs.reduce((sum, s) => sum + followingFromRelease(s), 0)
+      const credGain = state.songs.reduce((sum, s) => sum + credFromRelease(s), 0)
+
       const aged = state.songs.map((s) =>
         s.phase === 'released'
           ? { ...s, weeksOut: s.weeksOut + 1, earnings: s.earnings + weeklyEarning(s) }
@@ -211,6 +242,9 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         money: state.money + catalogEarnings - COST_OF_LIVING,
         lastCostOfLiving: COST_OF_LIVING,
         lastCatalogEarnings: catalogEarnings,
+        following: state.following + followingGain,
+        cred: clamp(state.cred + credGain, 0, 1),
+        lastFollowingGain: followingGain + state.days.reduce((s, d) => s + d.followingDelta, 0),
       }
     }
 
@@ -224,6 +258,8 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         days: [],
         lastCostOfLiving: 0,
         lastCatalogEarnings: 0,
+        lastFollowingGain: 0,
+        lastBacklash: [],
       }
 
     /* ---- §7 Songwriting ---------------------------------------------- */
@@ -263,15 +299,29 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       const song = songById(state, action.songId)
       if (!song || song.phase !== 'recording') return state
 
-      const { trajectory, rng } = rollTrajectory(song, state.rng)
+      const rolled = rollTrajectory(song, state.rng)
+
+      // §4: "any move that reads as selling out risks a backlash event." Only a
+      // mainstream release, and only if you had standing to trade — a pop record
+      // from someone with no Cred betrays nobody.
+      const back = rollBacklash(song, state.cred, rolled.rng)
+
       return {
         ...state,
-        rng,
+        rng: back.rng,
         songs: state.songs.map((s) =>
           s.id === song.id
-            ? { ...s, phase: 'released', releasedWeek: state.week, weeksOut: 0, trajectory }
+            ? {
+                ...s,
+                phase: 'released',
+                releasedWeek: state.week,
+                weeksOut: 0,
+                trajectory: rolled.trajectory,
+              }
             : s,
         ),
+        cred: back.backlash ? clamp(state.cred - BACKLASH_CRED_COST, 0, 1) : state.cred,
+        lastBacklash: back.backlash ? [...state.lastBacklash, song.title] : state.lastBacklash,
         // It's out; it can't be worked on any more.
         activeSongId: state.activeSongId === song.id ? null : state.activeSongId,
       }

@@ -23,7 +23,8 @@ built. Nothing is saved.
 | ✅ | **Character creation (§2)** — name, origin, a 7-question interview, talent + taste, confirm |
 | ✅ | **The loop (§5)** — plan a week, watch it resolve a day at a time, settle up |
 | ✅ | **Songwriting & release (§7)** — author a song, write it, record it, put it out |
-| ⏳ | §4 Following/Cred or §9 Live Gigs — where songs are supposed to pay off |
+| ✅ | **Fame (§4)** — Following vs Cred, the purist/populist fork, selling out and backlash |
+| ⏳ | §9 Live Gigs — the main source of Cred, and what Following is supposed to unlock |
 | ⏳ | Everything else |
 
 The interview is **seven questions**. §2 rejects a five-question version as too shallow, so five is
@@ -62,11 +63,38 @@ music. The pivot is deliberately set so a mismatch hurts more than a match helps
 suppresses the joy entirely — without that, a wrecked, bankrupt player writing music they love
 climbs to maximum mood.
 
-**Songs barely pay, on purpose.** A release earns £29–104 over its life against £200/wk of rent;
-even a viral spike is about one week's rent. That's not a tuning miss — early music *is* a rounding
-error, which is §12's whole tension. Songs currently pay in mood and pennies. Their real payoff is
-Following and Cred (§4), gigs (§9), and merch (§13) — none of which exist yet. **Don't inflate the
-money to compensate**; build §4.
+**Songs barely pay in money, on purpose.** A release earns £29–104 over its life against £200/wk of
+rent; even a viral spike is about one week's rent. That's not a tuning miss — early music *is* a
+rounding error, which is §12's whole tension. What a release actually buys is **reach and standing**
+(§4), weighted by where its genre sits on the underground↔mainstream axis. Gigs (§9) and merch (§13)
+are still owed. **Don't inflate the money to compensate.**
+
+### Fame (§4): one number shown, one never
+
+§4 makes fame two stats in tension. **Following** is reach and **Cred** is authenticity, and chasing
+one actively costs the other.
+
+**Following is a figure on screen; Cred never is.** That isn't a pillar-2 exception so much as the
+same rule money gets: the world counts your followers *for* you and puts the number in your face
+whether you asked or not (§14 calls it "an aggregate number"). Nobody anywhere can tell you what
+your scene credibility is, so Cred only ever comes back as prose. The asymmetry is the design — the
+thing you can measure is the thing that pulls at you, and the thing you can't is the thing you lose
+without noticing.
+
+The fork is real, measured over 20 weeks from the same character:
+
+| Strategy | Following | Cred |
+| --- | --- | --- |
+| Creator grind + pop releases | 1028 | 0.00 — *"More people know your name than respect it."* |
+| Music + network + punk releases | 206 | 0.69 — *"People whose opinion you care about take you seriously."* |
+| Hybrid (creator + punk) | 834 | 0.20 — the treadmill eats the records' standing |
+
+Selling out only costs you if you had something to sell: backlash needs a mainstream release **and**
+Cred above ~0.3. A pop record from a nobody betrays nobody, and rolls 0%.
+
+**Cred is deliberately slow and currently short of its main source.** §4 says it's built by paying
+dues at gigs, and §9 isn't built — so records and being in the scene get you known and no further.
+That's the honest gap. Raise the rates when gigs land, not before.
 
 ### How a day reads
 

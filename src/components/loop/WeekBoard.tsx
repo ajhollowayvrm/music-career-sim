@@ -9,6 +9,7 @@ import {
   projectEnergy,
 } from '../../game/week.ts'
 import { activeSong, formatMoney, type LoopAction, type LoopState } from '../../game/loop.ts'
+import { formatFollowing } from '../../game/fame.ts'
 
 interface Props {
   state: LoopState
@@ -150,10 +151,19 @@ export default function WeekBoard({ state, dispatch }: Props) {
   )
 }
 
-/** Reused by the header on every loop screen. */
+/**
+ * The header on every loop screen.
+ *
+ * Bars, not numbers, for energy and mood (pillar 2). Two figures are shown, and
+ * both earn it the same way: the world counts them for you whether you like it
+ * or not. Money, because §12 makes it the game-over factor. Following, because
+ * §4/§14 make it a real aggregate number and every platform shoves it in your
+ * face.
+ *
+ * Cred is NOT here, on purpose. Nobody can tell you what your standing is; it
+ * only ever comes back as prose, on the summary.
+ */
 export function VitalsBar({ state }: { state: LoopState }) {
-  // Deliberately not numbers — pillar 2. Bars and money only; money is the one
-  // thing §12 says the player is allowed to count.
   return (
     <div className="vitals">
       <span className="vital">
@@ -171,8 +181,17 @@ export function VitalsBar({ state }: { state: LoopState }) {
           <span className="vital-fill is-mood" style={{ width: `${state.mood}%` }} />
         </span>
       </span>
-      <span className={`vital-money${state.money < 0 ? ' is-broke' : ''}`}>
-        {formatMoney(state.money)}
+      <span className="vital-counts">
+        <span className={`vital-money${state.money < 0 ? ' is-broke' : ''}`}>
+          {formatMoney(state.money)}
+        </span>
+        <span className="vital-following" title="People following you">
+          {formatFollowing(state.following)}
+          <span className="vital-following-icon" aria-hidden="true">
+            {' '}
+            ♪
+          </span>
+        </span>
       </span>
     </div>
   )

@@ -1586,3 +1586,82 @@ a {
 .song-form .field-label {
   margin-top: 1.25rem;
 }
+
+/* ============================================================
+   Fame — BRIEF §4
+   Following is a figure; Cred is prose. Never a Cred bar.
+   ============================================================ */
+
+.vital-counts {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.vital-following {
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+.vital-following-icon {
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.standing {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+}
+
+.standing-following {
+  font-size: 0.95rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.standing-following strong {
+  font-size: 1.35rem;
+  color: var(--accent);
+}
+
+.standing-gain {
+  color: #6f9e6a;
+  font-size: 0.8rem;
+}
+
+.standing-cred {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  font-style: italic;
+  text-wrap: pretty;
+}
+
+/* The gap between reach and respect — §6's viral-musician credibility problem. */
+.standing-gap {
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--line);
+  font-size: 0.85rem;
+  color: var(--accent);
+  text-wrap: pretty;
+}
+
+.backlash {
+  margin-bottom: 1.25rem;
+  padding: 0.9rem 1rem;
+  border-left: 2px solid #c4553d;
+  background: var(--bg-raised);
+  border-radius: 0 0.5rem 0.5rem 0;
+  font-size: 0.9rem;
+  text-wrap: pretty;
+}
+
+.backlash strong {
+  color: var(--text);
+}

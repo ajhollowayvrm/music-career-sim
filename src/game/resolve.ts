@@ -22,6 +22,7 @@ import { clamp } from './traits.ts'
 import { BURNOUT_THRESHOLD, MAX_ENERGY, NIGHTLY_RECOVERY, REST_RECOVERY } from './week.ts'
 import { MAX_TALENT_AT_CREATION } from './talents.ts'
 import { songFit, type Song } from './songs.ts'
+import { CRED_PER_CREATOR_DAY, CRED_PER_NETWORK_DAY, followingFromCreatorDay } from './fame.ts'
 
 /** What a day paid. Money is thin on purpose — §12 owns the real economy. */
 export const DAY_JOB_PAY = 85
@@ -37,6 +38,10 @@ export interface DayResult {
   readonly energyAfter: number
   readonly moodAfter: number
   readonly moneyDelta: number
+  /** §4. Shown — the world counts these for you. */
+  readonly followingDelta: number
+  /** §4. Never shown as a number. */
+  readonly credDelta: number
   readonly burntOut: boolean
   /** The two-part sentence the player actually reads. */
   readonly report: string
@@ -162,6 +167,18 @@ export function resolveDay(input: DayInput): { result: DayResult; rng: Rng } {
 
   const moneyDelta = routeId === 'day_job' ? DAY_JOB_PAY : 0
 
+  // §4. The creator treadmill is the fastest reach in the game and it costs you
+  // standing every single day you're on it; the network is the slow opposite.
+  // Burnout gates the creator gain — a day you had nothing for reaches nobody.
+  const followingDelta =
+    routeId === 'creator' && !startedBurntOut ? followingFromCreatorDay(quality) : 0
+  const credDelta =
+    routeId === 'creator'
+      ? CRED_PER_CREATOR_DAY
+      : routeId === 'network' && !startedBurntOut
+        ? CRED_PER_NETWORK_DAY
+        : 0
+
   return {
     result: {
       dayIndex,
@@ -171,8 +188,10 @@ export function resolveDay(input: DayInput): { result: DayResult; rng: Rng } {
       energyAfter,
       moodAfter,
       moneyDelta,
+      followingDelta,
+      credDelta,
       burntOut: startedBurntOut,
-      report: buildReport(routeId, band, character, startedBurntOut, dayIndex, song),
+      report: buildReport(routeId, band, character, startedBurntOut, dayIndex, song, followingDelta),
     },
     rng: roll.rng,
   }
@@ -290,6 +309,7 @@ function buildReport(
   burntOut: boolean,
   dayIndex: number,
   song: Song | undefined,
+  followingDelta: number,
 ): string {
   let what: string
   if (routeId === 'make_music') {
@@ -297,6 +317,13 @@ function buildReport(
     what = song.phase === 'recording' ? RECORDING_OUTCOMES[band] : OUTCOMES.make_music[band]
   } else {
     what = OUTCOMES[routeId][band]
+  }
+
+  // Follower counts are the one figure a creator day can honestly report — the
+  // platform puts it in front of you (§4). It's also the hook that makes the
+  // treadmill tempting, which is exactly the trap §4 wants it to be.
+  if (routeId === 'creator' && followingDelta > 0) {
+    what += ` ${followingDelta} new ${followingDelta === 1 ? 'follower' : 'followers'}.`
   }
 
   const tail = burntOut

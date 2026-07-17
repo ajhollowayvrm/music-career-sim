@@ -1,5 +1,6 @@
 import { isBurntOut } from '../../game/week.ts'
 import { formatMoney, released, weekEarnings, type LoopState } from '../../game/loop.ts'
+import { STARTING_CRED, describeCred, describeGap, formatFollowing } from '../../game/fame.ts'
 
 interface Props {
   state: LoopState
@@ -17,6 +18,7 @@ export default function WeekSummary({ state, onNext }: Props) {
   const net = earned + state.lastCatalogEarnings - state.lastCostOfLiving
   const burntDays = state.days.filter((d) => d.burntOut).length
   const goodDays = state.days.filter((d) => d.band === 'good').length
+  const gap = describeGap(state.following, state.cred)
 
   return (
     <div className="summary">
@@ -50,6 +52,32 @@ export default function WeekSummary({ state, onNext }: Props) {
           <span className={state.money < 0 ? 'is-broke' : ''}>{formatMoney(state.money)}</span>
         </p>
       </div>
+
+      {/* §4. Following is a figure because the world counts it for you; Cred
+          never is, because nobody can tell you what your standing is. */}
+      {(state.following > 0 || state.cred > STARTING_CRED + 0.01) && (
+        <section className="standing">
+          <h3 className="confirm-title">Where you stand</h3>
+          {state.following > 0 && (
+            <p className="standing-following">
+              <strong>{formatFollowing(state.following)}</strong> following
+              {state.lastFollowingGain > 0 && (
+                <span className="standing-gain"> +{state.lastFollowingGain} this week</span>
+              )}
+            </p>
+          )}
+          <p className="standing-cred">{describeCred(state.cred)}</p>
+          {gap && <p className="standing-gap">{gap}</p>}
+        </section>
+      )}
+
+      {/* §4: a move that read as selling out. */}
+      {state.lastBacklash.map((title) => (
+        <p key={title} className="backlash">
+          Putting out <strong>{title}</strong> did not go unnoticed. The people who had been
+          defending you have gone quiet.
+        </p>
+      ))}
 
       <p className="summary-read">{readOfWeek(state, burntDays, goodDays, net)}</p>
 
