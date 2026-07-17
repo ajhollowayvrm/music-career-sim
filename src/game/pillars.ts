@@ -1,7 +1,12 @@
+export interface Pillar {
+  readonly title: string
+  readonly body: string
+}
+
 // The four design pillars from docs/BRIEF.md §1. These are the tie-breakers for
 // every systems decision in this repo — if a mechanic fights a pillar, the
 // mechanic is wrong.
-export const PILLARS = [
+export const PILLARS: readonly Pillar[] = [
   {
     title: 'Author yourself, then inhabit that person',
     body: 'Personality and taste are set at creation and stay fixed. Put the real you in and see how the world responds.',
@@ -21,7 +26,7 @@ export const PILLARS = [
 ]
 
 // §17 — the macro ladder, the shape of a full run.
-export const LADDER = [
+export const LADDER: readonly string[] = [
   'Solo songs',
   'Singles & albums',
   'Collabs',

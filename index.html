@@ -2,16 +2,31 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <!-- viewport-fit=cover lets the page paint under the Dynamic Island and the
+         home indicator; the safe-area insets in index.css keep content clear. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
     <title>From the Bottom Up — a music career simulator</title>
     <meta
       name="description"
       content="A music career simulator: bedroom demos to sold-out rooms to funding festivals for the next generation."
     />
+    <meta name="theme-color" content="#0b0a0d" />
+
+    <!-- Home Screen web app. `mobile-web-app-capable` is the standard; the
+         `apple-` one is legacy but still what older iOS reads. -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- black-translucent = the app paints full-bleed under the status bar. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Bottom Up" />
+
+    <link rel="icon" type="image/svg+xml" href="/music-career-sim/favicon.svg" />
+    <!-- iOS takes the Home Screen icon from here, not from the manifest. -->
+    <link rel="apple-touch-icon" href="/music-career-sim/apple-touch-icon.png" />
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

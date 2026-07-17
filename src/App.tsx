@@ -1,4 +1,4 @@
-import { PILLARS, LADDER } from './game/pillars.js'
+import { PILLARS, LADDER } from './game/pillars.ts'
 
 const REPO_URL = 'https://github.com/ajhollowayvrm/music-career-sim'
 
@@ -58,8 +58,7 @@ export default function App() {
 
       <footer className="footer">
         <p>
-          Design: AJ · Systems &amp; prototyping: Claude ·{' '}
-          <a href={REPO_URL}>source</a>
+          Design: AJ · Systems &amp; prototyping: Claude · <a href={REPO_URL}>source</a>
         </p>
       </footer>
     </div>

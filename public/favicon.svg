@@ -1,8 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="7" fill="#0b0a0d" />
+<!-- Rising equalizer bars: reads as music, and as "from the bottom up".
+     Keep in sync with the mark in tools/make-icons.mjs. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect width="100" height="100" rx="22" fill="#0b0a0d" />
   <g fill="#e8b04b">
-    <rect x="6" y="20" width="4" height="6" rx="1.5" />
-    <rect x="13" y="14" width="4" height="12" rx="1.5" />
-    <rect x="20" y="6" width="4" height="20" rx="1.5" />
+    <rect x="18" y="62" width="13" height="20" rx="5" />
+    <rect x="43" y="42" width="13" height="40" rx="5" />
+    <rect x="68" y="18" width="13" height="64" rx="5" />
   </g>
 </svg>

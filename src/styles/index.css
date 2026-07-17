@@ -1,3 +1,11 @@
+/*
+ * Mobile-first. The base rules target an iPhone held in portrait — the real
+ * target is a Home Screen web app on an iPhone 17 Pro Max (440x956pt) — and the
+ * min-width blocks at the bottom are the progressive enhancement for bigger
+ * screens. Don't invert this: if a rule only matters on desktop, it belongs in
+ * a media query, not in the base.
+ */
+
 :root {
   --bg: #0b0a0d;
   --bg-raised: #141218;
@@ -6,6 +14,16 @@
   --text-dim: #9a94a8;
   --accent: #e8b04b;
   --accent-dim: #7a5c24;
+
+  /* Apple HIG minimum comfortable tap target. */
+  --tap: 2.75rem; /* 44px */
+
+  /* env() resolves to 0 off-device, so these are safe everywhere. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
   color-scheme: dark;
 }
 
@@ -14,12 +32,51 @@
   margin: 0;
 }
 
+html {
+  /* Stop iOS from re-flowing type when the phone is rotated. */
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
+  min-height: 100dvh; /* dvh, not vh — vh is wrong while Safari's bars animate */
   background: var(--bg);
   color: var(--text);
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 1rem;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+
+  /* Standalone-mode touch hygiene: no rubber-band scroll past the ends, no grey
+     flash on tap, no long-press selection callout on chrome. */
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+/* Kill the 300ms double-tap delay without blocking pinch-zoom — accessibility
+   keeps zoom, the game loses the accidental zoom on rapid taps. */
+button,
+a,
+label,
+summary {
+  touch-action: manipulation;
+}
+
+/* Prose stays selectable; only the UI chrome doesn't. */
+p,
+h1,
+h2,
+h3 {
+  user-select: text;
+}
+
+/* Any future input must be >=16px or iOS auto-zooms the viewport on focus. */
+input,
+textarea,
+select {
+  font: inherit;
+  font-size: max(1rem, 16px);
 }
 
 /* A stage-light wash behind the hero. */
@@ -27,21 +84,25 @@ body::before {
   content: '';
   position: fixed;
   inset: 0;
-  background: radial-gradient(60rem 40rem at 50% -10%, #2a1f3d 0%, transparent 70%);
+  background: radial-gradient(40rem 30rem at 50% -5%, #2a1f3d 0%, transparent 70%);
   pointer-events: none;
   z-index: -1;
 }
 
 .page {
-  max-width: 64rem;
-  margin: 0 auto;
-  padding: clamp(2rem, 6vw, 5rem) 1.5rem 3rem;
+  /* The status bar is black-translucent, so the app paints under the Dynamic
+     Island and the home indicator. Pad clear of both. */
+  padding-top: calc(1.5rem + var(--safe-top));
+  padding-bottom: calc(2rem + var(--safe-bottom));
+  padding-left: max(1.25rem, var(--safe-left));
+  padding-right: max(1.25rem, var(--safe-right));
 }
 
-/* Hero */
+/* ---------- Hero ---------- */
+
 .hero {
   text-align: center;
-  padding-bottom: clamp(2rem, 6vw, 4rem);
+  padding-bottom: 2.5rem;
 }
 
 .eyebrow {
@@ -52,11 +113,11 @@ body::before {
 }
 
 .title {
-  font-size: clamp(2.75rem, 11vw, 5.5rem);
+  font-size: 3rem;
   line-height: 0.95;
   letter-spacing: -0.03em;
   font-weight: 800;
-  margin: 0.75rem 0;
+  margin: 0.6rem 0;
   background: linear-gradient(180deg, var(--text) 30%, var(--accent) 160%);
   -webkit-background-clip: text;
   background-clip: text;
@@ -67,37 +128,38 @@ body::before {
   font-style: italic;
   color: var(--accent);
   letter-spacing: 0.04em;
+  font-size: 0.95rem;
 }
 
 .pitch {
-  max-width: 40rem;
-  margin: 1.75rem auto 0;
+  margin-top: 1.25rem;
   color: var(--text-dim);
-  font-size: 1.05rem;
+  font-size: 0.95rem;
+  text-wrap: pretty;
 }
 
-/* Actions */
+/* ---------- Actions ---------- */
+
 .actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column; /* stacked and thumb-wide on a phone */
   gap: 0.75rem;
-  justify-content: center;
-  margin-top: 2rem;
+  margin-top: 1.75rem;
 }
 
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
+  padding: 0.7rem 1.5rem;
   font: inherit;
   font-weight: 600;
-  padding: 0.7rem 1.5rem;
   border-radius: 999px;
   border: 1px solid transparent;
   cursor: pointer;
   text-decoration: none;
-  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
-}
-
-.btn:hover:not(:disabled) {
-  transform: translateY(-1px);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
 
 .btn-primary {
@@ -117,15 +179,28 @@ body::before {
   color: var(--text);
 }
 
-.btn-ghost:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+/* Touch has no hover: press feedback is :active. */
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Hover effects only where a real pointer exists, so they don't stick on touch. */
+@media (hover: hover) {
+  .btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+
+  .btn-ghost:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 }
 
 .status {
-  margin-top: 1.75rem;
-  font-size: 0.85rem;
+  margin-top: 1.5rem;
+  font-size: 0.8rem;
   color: var(--text-dim);
+  text-wrap: pretty;
 }
 
 .dot {
@@ -138,50 +213,55 @@ body::before {
   vertical-align: middle;
 }
 
-/* Sections */
+/* ---------- Sections ---------- */
+
 .section {
   border-top: 1px solid var(--line);
-  padding-top: 2.5rem;
-  margin-top: 2.5rem;
+  padding-top: 2rem;
+  margin-top: 2rem;
 }
 
 .section-title {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.22em;
   color: var(--text-dim);
   font-weight: 600;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
 }
 
-/* Pillars */
+/* ---------- Pillars ---------- */
+
 .pillars {
   list-style: none;
   padding: 0;
   display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 0.75rem;
+  grid-template-columns: 1fr; /* one column on a phone */
 }
 
 .pillar {
   background: var(--bg-raised);
   border: 1px solid var(--line);
   border-radius: 0.75rem;
-  padding: 1.25rem;
+  padding: 1.1rem;
 }
 
 .pillar h3 {
-  font-size: 1rem;
+  font-size: 0.95rem;
+  line-height: 1.35;
   margin-bottom: 0.4rem;
   color: var(--accent);
 }
 
 .pillar p {
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   color: var(--text-dim);
+  text-wrap: pretty;
 }
 
-/* Ladder */
+/* ---------- Ladder ---------- */
+
 .ladder {
   list-style: none;
   padding: 0;
@@ -195,8 +275,8 @@ body::before {
   counter-increment: rung;
   border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 0.35rem 0.9rem;
-  font-size: 0.85rem;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.8rem;
   color: var(--text-dim);
 }
 
@@ -204,20 +284,102 @@ body::before {
   content: counter(rung);
   color: var(--accent);
   font-weight: 700;
-  margin-right: 0.5rem;
-  font-size: 0.75rem;
+  margin-right: 0.45rem;
+  font-size: 0.7rem;
 }
 
-/* Footer */
+/* ---------- Footer ---------- */
+
 .footer {
   border-top: 1px solid var(--line);
-  margin-top: 3rem;
+  margin-top: 2.5rem;
   padding-top: 1.5rem;
   text-align: center;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--text-dim);
+  text-wrap: pretty;
 }
 
 a {
   color: var(--accent);
+}
+
+/* Links sitting inside prose can't be 44px tall without wrecking the line, so
+   grow their hit area with padding and pull it back with negative margin —
+   easier to thumb, same layout. */
+.footer a {
+  display: inline-block;
+  padding: 0.5rem 0.35rem;
+  margin: -0.5rem -0.35rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* ---------- Progressive enhancement for bigger screens ---------- */
+
+@media (min-width: 30rem) {
+  /* 480px — side-by-side buttons once there's room for two thumb targets. */
+  .actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .title {
+    font-size: 4rem;
+  }
+}
+
+@media (min-width: 48rem) {
+  /* 768px — tablet. */
+  .page {
+    max-width: 64rem;
+    margin-inline: auto;
+    padding-top: calc(3rem + var(--safe-top));
+  }
+
+  .title {
+    font-size: 5rem;
+  }
+
+  .tagline,
+  .pitch {
+    font-size: 1.05rem;
+  }
+
+  .pitch {
+    max-width: 40rem;
+    margin-inline: auto;
+    margin-top: 1.75rem;
+  }
+
+  .pillars {
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 1rem;
+  }
+
+  .section {
+    padding-top: 2.5rem;
+    margin-top: 2.5rem;
+  }
+
+  body::before {
+    background: radial-gradient(60rem 40rem at 50% -10%, #2a1f3d 0%, transparent 70%);
+  }
+}
+
+@media (min-width: 64rem) {
+  /* 1024px — desktop. */
+  .page {
+    padding-top: calc(5rem + var(--safe-top));
+  }
+
+  .title {
+    font-size: 5.5rem;
+  }
 }
