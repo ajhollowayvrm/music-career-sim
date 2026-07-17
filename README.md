@@ -127,11 +127,16 @@ wrong — especially *numbers are felt, not shown*, which rules out surfacing ra
 
 ### Known gaps
 
-- **Save durability isn't solved.** Script-writable storage (localStorage/IndexedDB) can be evicted
-  by Safari. For a game where a run is dozens of hours, an export/import save file is the honest
-  mitigation — decide this before the first system that writes a save.
-- **State architecture isn't decided.** A single game-state object behind a reducer is the likely
-  shape, but nothing is committed yet. Settle it before system #2, not #6.
+- **Saving and persistence: deferred by decision (2026-07-16).** Nothing is persisted — a reload
+  discards the run. This is a known, accepted state, not an oversight. When it's picked up, the two
+  questions are (a) durability: Safari can evict script-writable storage (localStorage/IndexedDB),
+  so an export/import save file is the honest mitigation, and (b) whether a run is one save slot or
+  many. The groundwork is already laid: every value in `src/game/` is a plain serializable object
+  with no class instances, `Date`, or functions, so persistence should be additive rather than a
+  refactor. **Keep it that way** — it's the whole reason deferring this is cheap.
+- **State architecture: settled.** One plain state object behind a pure reducer, colocated with the
+  system it belongs to (see `src/game/creation.ts`). React holds it via `useReducer`; the reducer
+  itself imports nothing from React.
 - §18 of the brief parks five deliberately-unresolved design questions.
 
 ---

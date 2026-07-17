@@ -383,3 +383,665 @@ a {
     font-size: 5.5rem;
   }
 }
+
+/* ============================================================
+   Character creation — BRIEF §2
+   Mobile-first, same rule as above: the base is the phone.
+   ============================================================ */
+
+/* A full-height column: fixed header, scrolling middle, thumb-zone actions.
+   dvh so it survives Safari's bars animating. */
+.creation {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.creation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: calc(0.75rem + var(--safe-top)) max(1.25rem, var(--safe-left)) 0.75rem
+    max(1.25rem, var(--safe-right));
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(8px);
+  z-index: 2;
+}
+
+.creation-quit {
+  min-height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.75rem 0 0;
+  margin-left: -0.15rem;
+  background: none;
+  border: 0;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.creation-quit:active {
+  color: var(--text);
+}
+
+.creation-step {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--text-dim);
+}
+
+.creation-count {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.creation-body {
+  flex: 1;
+  padding: 1.5rem max(1.25rem, var(--safe-left)) 1.5rem max(1.25rem, var(--safe-right));
+}
+
+/* Actions sit at the bottom — that's where the thumb is. */
+.creation-actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.75rem max(1.25rem, var(--safe-left)) calc(0.75rem + var(--safe-bottom))
+    max(1.25rem, var(--safe-right));
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.btn-grow {
+  flex: 1;
+}
+
+.step {
+  max-width: 34rem;
+  margin-inline: auto;
+}
+
+.step-title {
+  font-size: 1.5rem;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.6rem;
+}
+
+.step-lede {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+  text-wrap: pretty;
+}
+
+/* ---------- Name ---------- */
+
+.field {
+  display: block;
+  margin-bottom: 1.5rem;
+}
+
+.field-label {
+  display: block;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-dim);
+  margin-bottom: 0.5rem;
+}
+
+.field-optional {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--accent-dim);
+  font-style: italic;
+}
+
+.input {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0.7rem 0.9rem;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  color: var(--text);
+  /* font-size >=16px is enforced globally — iOS zooms the viewport otherwise. */
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+.field-help {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-wrap: pretty;
+}
+
+/* ---------- Origins ---------- */
+
+.origins,
+.answers,
+.genres,
+.portrait-lines,
+.confirm-talents {
+  list-style: none;
+  padding: 0;
+}
+
+.origins {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.origin-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  padding: 1.1rem;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.origin-card.is-selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-raised));
+}
+
+.origin-card:active {
+  transform: scale(0.995);
+}
+
+.origin-label {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.origin-story {
+  font-size: 0.875rem;
+  color: var(--text-dim);
+  text-wrap: pretty;
+}
+
+.keepsake {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.35rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--line);
+  font-size: 0.8rem;
+}
+
+.keepsake-name {
+  font-weight: 600;
+}
+
+.keepsake-desc {
+  color: var(--text-dim);
+  font-style: italic;
+  text-wrap: pretty;
+}
+
+.keepsake-benefit {
+  color: var(--accent);
+  text-wrap: pretty;
+}
+
+/* ---------- Interview ---------- */
+
+.interview-progress {
+  display: flex;
+  gap: 0.25rem;
+  /* Negative margin pulls back the tap padding below, so the bar still reads as
+     a thin rule while staying thumbable. */
+  margin: -0.7rem 0 0.8rem;
+}
+
+/* The visible tick is 3px; the button around it is 44px tall so it can be hit. */
+.tick-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 0.7rem 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  min-height: var(--tap);
+}
+
+.tick {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line);
+  transition: background 0.2s ease;
+}
+
+.tick-btn:active .tick {
+  background: var(--text-dim);
+}
+
+.tick.is-done {
+  background: var(--accent-dim);
+}
+
+.tick.is-current {
+  background: var(--accent);
+}
+
+.question {
+  font-size: 1.35rem;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.5rem;
+  text-wrap: pretty;
+}
+
+.question-aside {
+  color: var(--text-dim);
+  font-style: italic;
+  font-size: 0.875rem;
+  margin-bottom: 1.25rem;
+}
+
+.answers {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+}
+
+.answer {
+  width: 100%;
+  min-height: var(--tap);
+  text-align: left;
+  padding: 0.9rem 1rem;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  color: inherit;
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.answer.is-selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-raised));
+}
+
+.answer:active {
+  transform: scale(0.99);
+}
+
+.interview-note {
+  margin-top: 1.5rem;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  font-style: italic;
+  text-wrap: pretty;
+}
+
+/* ---------- Talents & sound ---------- */
+
+.tabs {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.25rem;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  margin-bottom: 1.25rem;
+}
+
+.tab {
+  flex: 1;
+  min-height: 2.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tab.is-active {
+  background: var(--accent);
+  color: #1a1206;
+}
+
+.tab-badge {
+  min-width: 1.25rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 20%, transparent);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.points {
+  font-size: 0.85rem;
+  color: var(--accent);
+  margin-bottom: 1rem;
+  text-wrap: pretty;
+}
+
+.points.is-done {
+  color: var(--text-dim);
+}
+
+.talent-group {
+  margin-bottom: 1.5rem;
+}
+
+.talent-group-title {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--text-dim);
+  margin-bottom: 0.6rem;
+}
+
+.talent-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.talent-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.talent-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.talent-seeded {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  color: var(--accent);
+  border: 1px solid var(--accent-dim);
+  border-radius: 999px;
+  padding: 0.05rem 0.35rem;
+}
+
+.talent-blurb {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  text-wrap: pretty;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.step-btn {
+  width: var(--tap);
+  height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--bg-raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.step-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.step-btn:active:not(:disabled) {
+  background: var(--accent);
+  color: #1a1206;
+}
+
+.pips {
+  letter-spacing: 0.1em;
+  font-size: 0.7rem;
+  color: var(--accent);
+  min-width: 4.2rem;
+  text-align: center;
+}
+
+.genres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.genre {
+  min-height: 2.5rem;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-raised);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.genre.is-on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #1a1206;
+  font-weight: 600;
+}
+
+.genre:active {
+  transform: scale(0.97);
+}
+
+.leaning-read {
+  margin-top: 1.25rem;
+  padding: 0.9rem 1rem;
+  border-left: 2px solid var(--accent);
+  background: var(--bg-raised);
+  border-radius: 0 0.5rem 0.5rem 0;
+  font-size: 0.9rem;
+  font-style: italic;
+  color: var(--text);
+  text-wrap: pretty;
+}
+
+/* ---------- Confirm ---------- */
+
+.portrait {
+  text-align: center;
+  padding: 1.25rem 0 1.75rem;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 1.5rem;
+}
+
+.portrait-name {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--accent);
+  text-wrap: balance;
+}
+
+.portrait-realname,
+.portrait-origin {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-top: 0.35rem;
+}
+
+.confirm-block {
+  margin-bottom: 1.5rem;
+}
+
+.confirm-title {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--text-dim);
+  margin-bottom: 0.6rem;
+}
+
+.confirm-keepsake,
+.confirm-taste {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  text-wrap: pretty;
+}
+
+.confirm-keepsake strong {
+  color: var(--text);
+}
+
+.confirm-taste {
+  font-style: italic;
+  color: var(--text);
+}
+
+.portrait-lines {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.portrait-lines li {
+  font-size: 0.9rem;
+  padding-left: 0.9rem;
+  position: relative;
+  color: var(--text);
+  text-wrap: pretty;
+}
+
+.portrait-lines li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.6em;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.confirm-talents {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.confirm-talents li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.85rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.confirm-warning {
+  margin-top: 1.75rem;
+  padding: 0.9rem 1rem;
+  border: 1px dashed var(--accent-dim);
+  border-radius: 0.6rem;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-wrap: pretty;
+}
+
+.day-one-title {
+  font-size: 2.5rem;
+}
+
+/* Screen-reader-only live region for interview progress. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- Bigger screens ---------- */
+
+@media (min-width: 48rem) {
+  .step-title {
+    font-size: 1.9rem;
+  }
+
+  .question {
+    font-size: 1.6rem;
+  }
+
+  .creation-body {
+    padding-top: 2.5rem;
+  }
+
+  .origins {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .creation-actions {
+    justify-content: center;
+  }
+
+  .btn-grow {
+    flex: 0 1 18rem;
+  }
+}
