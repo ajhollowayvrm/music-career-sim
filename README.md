@@ -13,7 +13,7 @@ not an idle clicker.
 
 **Pre-alpha, and playable.** Author a musician, plan your weeks, write songs, put them out, play them
 to a room, and find (or wreck) a band. The design document is complete and remains the source of
-truth; ten of its eighteen systems are built. Nothing is saved.
+truth; eleven of its eighteen systems are built. Nothing is saved.
 
 | | |
 | --- | --- |
@@ -30,7 +30,8 @@ truth; ten of its eighteen systems are built. Nothing is saved.
 | ✅ | **Items & possessions (§11)** — the liquidation ladder: sell, pawn, buy back, forfeit |
 | ✅ | **Gear (§10)** — the recording lever, a shop, signature gear; live is still the player |
 | ✅ | **Events engine (§16)** — one-offs interrupt the day; the addiction→comeback chain |
-| ⏳ | §13 merch, §14 superfans, §15 awards |
+| ✅ | **Merch (§13)** — the inventory gamble, cred-vs-cash pricing, scarcity; gigs sell it |
+| ⏳ | §14 superfans, §15 awards |
 | ⏳ | §17 the macro ladder — the arc above all of it |
 
 The interview is **seven questions**. §2 rejects a five-question version as too shallow, so five is

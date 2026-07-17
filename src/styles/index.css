@@ -1970,6 +1970,63 @@ a {
 }
 
 /* ============================================================
+   Merch — BRIEF §13
+   ============================================================ */
+
+.drops {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  margin-bottom: 1.4rem;
+}
+
+.drop {
+  padding: 0.85rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: var(--bg-raised);
+}
+
+.drop.is-closed {
+  opacity: 0.7;
+}
+
+.drop-name {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.drop-facts {
+  margin-top: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.drop-status {
+  margin-top: 0.35rem;
+  font-size: 0.88rem;
+  text-wrap: pretty;
+}
+
+.drop-blurb {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-bottom: 0.4rem;
+  text-wrap: pretty;
+}
+
+.merch-toggle {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+/* ============================================================
    Live gigs — BRIEF §9
    ============================================================ */
 

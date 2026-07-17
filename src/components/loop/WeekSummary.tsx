@@ -41,6 +41,13 @@ export default function WeekSummary({ state, onNext }: Props) {
             <span className="ledger-in">+£{state.lastCatalogEarnings}</span>
           </p>
         )}
+        {/* §13: merch, once there's a drop paying (or one that just cost you). */}
+        {(state.lastMerchRevenue > 0 || state.merch.length > 0) && (
+          <p className="ledger-row">
+            <span>Merch</span>
+            <span className="ledger-in">+£{state.lastMerchRevenue}</span>
+          </p>
+        )}
         <p className="ledger-row">
           <span>Rent &amp; living</span>
           <span className="ledger-out">−£{state.lastCostOfLiving}</span>
@@ -94,6 +101,15 @@ export default function WeekSummary({ state, onNext }: Props) {
             </p>
           ))}
         </section>
+      )}
+
+      {/* §13: a run closed with stock still in the box — money you fronted and
+          won't get back. The other half of the gamble. */}
+      {state.lastDeadStock > 0 && (
+        <p className="rent-notice is-overdue">
+          A merch run ended with £{state.lastDeadStock} of stock unsold. You ordered more than the
+          room wanted.
+        </p>
       )}
 
       {/* §4: a move that read as selling out. */}

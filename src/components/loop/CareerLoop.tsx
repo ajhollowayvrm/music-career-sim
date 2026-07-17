@@ -11,6 +11,7 @@ import GigsPanel from './GigsPanel.tsx'
 import GigNight from './GigNight.tsx'
 import BandPanel from './BandPanel.tsx'
 import ItemsPanel from './ItemsPanel.tsx'
+import MerchPanel from './MerchPanel.tsx'
 import GameOver from './GameOver.tsx'
 
 interface Props {
@@ -19,7 +20,7 @@ interface Props {
   onQuit: () => void
 }
 
-type Tab = 'week' | 'songs' | 'gigs' | 'band' | 'things'
+type Tab = 'week' | 'songs' | 'gigs' | 'band' | 'things' | 'merch'
 
 /** §5 The Daily Loop: plan a week, watch it happen a day at a time, settle up. */
 export default function CareerLoop({ character, seed, onQuit }: Props) {
@@ -120,6 +121,18 @@ export default function CareerLoop({ character, seed, onQuit }: Props) {
               <span className="tab-badge is-urgent">!</span>
             )}
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'merch'}
+            className={`tab${tab === 'merch' ? ' is-active' : ''}`}
+            onClick={() => setTab('merch')}
+          >
+            Merch
+            {state.merch.some((d) => !d.closed) && (
+              <span className="tab-badge">{state.merch.filter((d) => !d.closed).length}</span>
+            )}
+          </button>
         </div>
       )}
 
@@ -133,6 +146,9 @@ export default function CareerLoop({ character, seed, onQuit }: Props) {
           <BandPanel state={state} character={character} dispatch={dispatch} />
         )}
         {planning && tab === 'things' && <ItemsPanel state={state} dispatch={dispatch} />}
+        {planning && tab === 'merch' && (
+          <MerchPanel state={state} character={character} dispatch={dispatch} />
+        )}
         {state.phase === 'resolving' && (
           <DayResolve
             state={state}

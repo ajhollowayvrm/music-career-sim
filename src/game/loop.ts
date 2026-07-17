@@ -102,6 +102,20 @@ import {
   type ActiveEvent,
   type ChainState,
 } from './events.ts'
+import {
+  MIN_ORDER,
+  ageDrop,
+  deadStockLoss,
+  maxOrder,
+  merchCredDelta,
+  merchQuality,
+  newDrop,
+  orderCost,
+  productById,
+  weeklyMerchSales,
+  type MerchDrop,
+  type Scarcity,
+} from './merch.ts'
 
 /** Deducted every week — §12 will decide what happens when you can't pay it. */
 export const COST_OF_LIVING = 200
@@ -169,6 +183,14 @@ export interface LoopState {
   readonly activeEvent: ActiveEvent | null
   /** §16. Outcomes of events this week, for the day log and the summary. */
   readonly eventLog: readonly string[]
+  /** §13. Merch drops you've put out — each an inventory gamble. */
+  readonly merch: readonly MerchDrop[]
+  /** §13. Ids from a counter, not Date/random — state stays serializable. */
+  readonly nextDropId: number
+  /** §13. What merch paid in the week just played, for the summary. */
+  readonly lastMerchRevenue: number
+  /** §13. Money left dead in the box on runs that closed this week (a loss). */
+  readonly lastDeadStock: number
   /** Everything you've ever written (§7). */
   readonly songs: readonly Song[]
   /** The song 'make music' days work on. Null = the bench is empty. */
@@ -243,6 +265,10 @@ export function initialLoopState(seed: number, originId?: OriginId): LoopState {
     chain: startingChain(),
     activeEvent: null,
     eventLog: [],
+    merch: [],
+    nextDropId: 1,
+    lastMerchRevenue: 0,
+    lastDeadStock: 0,
     songs: [],
     activeSongId: null,
     nextSongId: 1,
@@ -319,6 +345,17 @@ export type LoopAction =
   | { type: 'buyGear'; catalogId: string }
   // §16
   | { type: 'chooseEvent'; choiceId: string }
+  // §13
+  | {
+      type: 'makeMerch'
+      name: string
+      productId: string
+      tiedTo: string
+      quantity: number
+      price: number
+      scarcity: Scarcity
+      character: Character
+    }
 
 export function loopReducer(state: LoopState, action: LoopAction): LoopState {
   switch (action.type) {
@@ -530,7 +567,25 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
 
       // §12: the bills land, then rent is judged. Going under water serves
       // notice; a month of it still under water is eviction, and the run ends.
-      const moneyAfter = state.money + myCatalog - COST_OF_LIVING
+      // §13: the merch sells. A gig this week is the big multiplier — a room
+      // that came for you. Revenue counts toward rent; dead stock on a run that
+      // closes is money you fronted and won't get back. Kept as the player's,
+      // not split (§13: it's your brand), unlike the door and the catalogue.
+      const gigScore = state.lastGig ? state.lastGig.result.score : null
+      let merchRevenue = 0
+      let merchCred = 0
+      let deadStock = 0
+      const merchAfter = state.merch.map((drop) => {
+        if (drop.closed) return drop
+        const { units, revenue } = weeklyMerchSales(drop, { following: state.following, gigScore })
+        merchRevenue += revenue
+        merchCred += merchCredDelta(drop)
+        const aged = ageDrop(drop, units)
+        if (aged.closed) deadStock += deadStockLoss(aged)
+        return aged
+      })
+
+      const moneyAfter = state.money + myCatalog + merchRevenue - COST_OF_LIVING
       const rent = assessRent(moneyAfter, state.graceWeeksLeft)
 
       // §16: where you are in the chain weighs on the week — the bottom stalls
@@ -556,8 +611,11 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         lastRentEvent: rent.event,
         lastCostOfLiving: COST_OF_LIVING,
         lastCatalogEarnings: myCatalog,
+        merch: merchAfter,
+        lastMerchRevenue: merchRevenue,
+        lastDeadStock: deadStock,
         following: state.following + dampenedFollowingGain,
-        cred: clamp(state.cred + credGain, 0, 1),
+        cred: clamp(state.cred + credGain + merchCred, 0, 1),
         mood: clamp(state.mood + chainWk.moodDelta, 0, 100),
         strain: strainNext,
         chain: chainNext,
@@ -586,6 +644,8 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         // week (§12). Only catching up or eviction clears it.
         lastRentEvent: 'none',
         lastCatalogEarnings: 0,
+        lastMerchRevenue: 0,
+        lastDeadStock: 0,
         lastFollowingGain: 0,
         lastBacklash: [],
         lastGig: null,
@@ -899,6 +959,38 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         cred: clamp(state.cred + (fx.credDelta ?? 0), 0, 1),
         strain: applyStrain(state.strain, fx.strainDelta ?? 0),
         chain,
+      }
+    }
+
+    /* ---- §13 Merch --------------------------------------------------- */
+
+    case 'makeMerch': {
+      if (state.phase !== 'planning') return state
+      // §13: you release it against a record or a tour, never from nowhere.
+      const canTie = released(state).length > 0 || state.booking !== null
+      if (!canTie) return state
+      const product = productById(action.productId)
+      const quantity = Math.round(action.quantity)
+      if (quantity < MIN_ORDER || quantity > maxOrder(action.scarcity)) return state
+      const cost = orderCost(product, quantity)
+      // §12/§13: you front the inventory money. No credit — cash you have.
+      if (state.money < cost) return state
+
+      const drop = newDrop(
+        state.nextDropId,
+        action.name,
+        product,
+        action.tiedTo,
+        quantity,
+        Math.max(1, Math.round(action.price)),
+        action.scarcity,
+        merchQuality(action.character),
+      )
+      return {
+        ...state,
+        merch: [...state.merch, drop],
+        nextDropId: state.nextDropId + 1,
+        money: state.money - cost,
       }
     }
 
