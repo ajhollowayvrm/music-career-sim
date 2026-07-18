@@ -60,9 +60,40 @@ export interface GearForSale {
  * move the needle most and a full rig hits diminishing returns.
  */
 export const GEAR_CATALOG: readonly GearForSale[] = [
+  // The starter tier (§10, #2). Cheap enough to kit out a first bedroom rig from
+  // the £400 you begin with — and the whole point of it: until you own SOMETHING
+  // here, recording is a laptop-lid demo (see NO_GEAR_PENALTY in songs.ts). The
+  // first mic is the one that lifts the penalty; the rest is the climb.
+  {
+    catalogId: 'usb_mic',
+    name: 'A USB mic',
+    description: 'Not a good mic. But a mic — the end of singing into the laptop and hoping.',
+    category: 'gear',
+    price: 45,
+    recordingBonus: 0.04,
+    attachment: 0.25,
+  },
+  {
+    catalogId: 'pop_filter',
+    name: 'A pop filter',
+    description: 'A little mesh hoop that stops every "p" and "b" from thumping the mic. Cheap, and you hear it.',
+    category: 'gear',
+    price: 15,
+    recordingBonus: 0.02,
+    attachment: 0.1,
+  },
+  {
+    catalogId: 'audio_interface',
+    name: 'An audio interface',
+    description: 'A proper box between you and the laptop. Cleaner in, lower latency, room to grow.',
+    category: 'gear',
+    price: 70,
+    recordingBonus: 0.05,
+    attachment: 0.3,
+  },
   {
     catalogId: 'interface_mic',
-    name: 'An interface and a real mic',
+    name: 'A real condenser mic',
     description: 'The end of recording into a laptop lid. Suddenly your voice sounds like your voice.',
     category: 'gear',
     price: 180,
@@ -142,6 +173,15 @@ export function gearRecordingBonus(inventory: readonly Item[]): number {
     .reduce((total, i) => total + i.recordingBonus, 0)
   return clamp(sum, 0, MAX_GEAR_BONUS)
 }
+
+/**
+ * Whether you own ANY recording gear at all — the switch on §10's soft gate.
+ * Own nothing that helps a recording and you're cutting laptop-lid demos
+ * (NO_GEAR_PENALTY in songs.ts); own even the cheapest mic and the penalty lifts.
+ * Pawned/sold gear doesn't count — a mic at the pawnbroker records nothing.
+ */
+export const ownsRecordingGear = (inventory: readonly Item[]): boolean =>
+  inventory.some((i) => i.status.kind === 'owned' && i.recordingBonus > 0)
 
 /**
  * Whether a piece has become part of your sound — §10's signature. Not bought:

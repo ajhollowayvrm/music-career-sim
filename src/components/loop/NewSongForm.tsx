@@ -1,11 +1,24 @@
 import { useState } from 'react'
 import { GENRES } from '../../game/genres.ts'
-import { MAX_THEMES, THEMES, describeFit, newSong, songFit } from '../../game/songs.ts'
+import {
+  MAX_THEMES,
+  THEMES,
+  describeFit,
+  describeSoul,
+  newSong,
+  songFit,
+} from '../../game/songs.ts'
 import type { Character } from '../../game/character.ts'
 
 interface Props {
   character: Character
-  onStart: (title: string, genreId: string, themes: readonly string[]) => void
+  onStart: (
+    title: string,
+    genreId: string,
+    themes: readonly string[],
+    tempo: number,
+    feel: number,
+  ) => void
   onCancel: () => void
 }
 
@@ -24,9 +37,12 @@ export default function NewSongForm({ character, onStart, onCancel }: Props) {
   const [title, setTitle] = useState('')
   const [genreId, setGenreId] = useState<string | null>(null)
   const [themes, setThemes] = useState<readonly string[]>([])
+  const [tempo, setTempo] = useState(0.5)
+  const [feel, setFeel] = useState(0.5)
 
   const ready = title.trim().length > 0 && genreId !== null
-  const fit = genreId ? songFit(newSong(0, title, genreId, themes), character) : null
+  const draft = genreId ? newSong(0, title || 'x', genreId, themes, tempo, feel) : null
+  const fit = draft ? songFit(draft, character) : null
 
   const toggleTheme = (t: string) =>
     setThemes((prev) =>
@@ -69,6 +85,43 @@ export default function NewSongForm({ character, onStart, onCancel }: Props) {
 
       {fit !== null && <p className="leaning-read">{describeFit(fit)}</p>}
 
+      <p className="field-label">Its soul</p>
+      <div className="soul-levers">
+        <label className="soul-lever">
+          <span className="soul-ends">
+            <span>slow</span>
+            <span>fast</span>
+          </span>
+          <input
+            className="soul-range"
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={tempo}
+            aria-label="Tempo, slow to fast"
+            onChange={(e) => setTempo(Number(e.target.value))}
+          />
+        </label>
+        <label className="soul-lever">
+          <span className="soul-ends">
+            <span>tender</span>
+            <span>furious</span>
+          </span>
+          <input
+            className="soul-range"
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={feel}
+            aria-label="Feel, tender to furious"
+            onChange={(e) => setFeel(Number(e.target.value))}
+          />
+        </label>
+      </div>
+      {draft && <p className="leaning-read">{describeSoul(draft, character)}</p>}
+
       <p className="field-label">
         What it&apos;s about <span className="field-optional">up to {MAX_THEMES}, optional</span>
       </p>
@@ -95,7 +148,7 @@ export default function NewSongForm({ character, onStart, onCancel }: Props) {
           type="button"
           className="btn btn-primary btn-grow"
           disabled={!ready}
-          onClick={() => genreId && onStart(title, genreId, themes)}
+          onClick={() => genreId && onStart(title, genreId, themes, tempo, feel)}
         >
           {ready ? 'Start writing' : title.trim() ? 'Pick a genre' : 'Give it a name'}
         </button>

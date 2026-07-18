@@ -1,14 +1,19 @@
 import { useState } from 'react'
 import type { Character } from '../../game/character.ts'
+import { gearRecordingBonus, ownsRecordingGear } from '../../game/gear.ts'
 import { activeSong, released, workbench, type LoopAction, type LoopState } from '../../game/loop.ts'
 import { describeRelease } from '../../game/release.ts'
 import {
   compositionCeiling,
+  describeChannel,
+  describeFeel,
   describeFit,
   describeProgress,
+  describeTempo,
   genreOf,
   productionCeiling,
   songFit,
+  type ReleaseChannel,
   type Song,
 } from '../../game/songs.ts'
 import NewSongForm from './NewSongForm.tsx'
@@ -28,18 +33,36 @@ interface Props {
  */
 export default function SongsPanel({ state, character, dispatch }: Props) {
   const [starting, setStarting] = useState(false)
+  const [releasingId, setReleasingId] = useState<number | null>(null)
   const bench = workbench(state)
   const out = released(state)
   const active = activeSong(state)
+  const gearBonus = gearRecordingBonus(state.inventory)
+  const ownsGear = ownsRecordingGear(state.inventory)
 
   if (starting) {
     return (
       <NewSongForm
         character={character}
         onCancel={() => setStarting(false)}
-        onStart={(title, genreId, themes) => {
-          dispatch({ type: 'startSong', title, genreId, themes })
+        onStart={(title, genreId, themes, tempo, feel) => {
+          dispatch({ type: 'startSong', title, genreId, themes, tempo, feel })
           setStarting(false)
+        }}
+      />
+    )
+  }
+
+  const releasingSong = releasingId !== null ? bench.find((s) => s.id === releasingId) : undefined
+  if (releasingSong) {
+    return (
+      <ReleaseForm
+        song={releasingSong}
+        signed={state.label !== null}
+        onCancel={() => setReleasingId(null)}
+        onRelease={(channel) => {
+          dispatch({ type: 'releaseSong', songId: releasingSong.id, channel })
+          setReleasingId(null)
         }}
       />
     )
@@ -69,6 +92,9 @@ export default function SongsPanel({ state, character, dispatch }: Props) {
                 song={song}
                 character={character}
                 isActive={active?.id === song.id}
+                gearBonus={gearBonus}
+                ownsGear={ownsGear}
+                onRelease={setReleasingId}
                 dispatch={dispatch}
               />
             ))}
@@ -85,7 +111,8 @@ export default function SongsPanel({ state, character, dispatch }: Props) {
                 <SongIdentity song={song} />
                 <p className="song-read">{describeRelease(song)}</p>
                 <p className="song-earnings">
-                  Earned <strong>£{song.earnings}</strong> since week {song.releasedWeek}
+                  {describeChannel(song.channel)} · earned <strong>£{song.earnings}</strong> since
+                  week {song.releasedWeek}
                 </p>
               </li>
             ))}
@@ -108,6 +135,10 @@ function SongIdentity({ song }: { song: Song }) {
       <p className="song-title">{song.title}</p>
       <p className="song-meta">
         {genreOf(song).label}
+        <span className="song-soul">
+          {' '}
+          · {describeTempo(song.tempo)}, {describeFeel(song.feel)}
+        </span>
         {song.themes.length > 0 && <span className="song-themes"> · {song.themes.join(', ')}</span>}
       </p>
     </div>
@@ -118,17 +149,22 @@ interface BenchProps {
   song: Song
   character: Character
   isActive: boolean
+  gearBonus: number
+  ownsGear: boolean
+  onRelease: (songId: number) => void
   dispatch: (action: LoopAction) => void
 }
 
-function BenchSong({ song, character, isActive, dispatch }: BenchProps) {
+function BenchSong({ song, character, isActive, gearBonus, ownsGear, onRelease, dispatch }: BenchProps) {
   const writing = song.phase === 'writing'
   // Progress is judged against THIS character's ceiling — "nothing left to add"
-  // means nothing left for them.
+  // means nothing left for them. Recording also reads the gear you own (§10): no
+  // rig, and the ceiling is a demo whatever your talent.
   const progress = writing
     ? describeProgress(song.composition, compositionCeiling(character))
-    : describeProgress(song.production, productionCeiling(character))
+    : describeProgress(song.production, productionCeiling(character, gearBonus, ownsGear))
   const sessions = writing ? song.writingSessions : song.recordingSessions
+  const laptopLid = !writing && !ownsGear
 
   return (
     <li className={`song-card${isActive ? ' is-active' : ''}`}>
@@ -151,6 +187,13 @@ function BenchSong({ song, character, isActive, dispatch }: BenchProps) {
         <p className="song-read">{describeFit(songFit(song, character))}</p>
       )}
 
+      {laptopLid && (
+        <p className="song-warn">
+          You are recording into a laptop. It will sound like it — a mic and an interface from the
+          shop are the difference between a demo and a record.
+        </p>
+      )}
+
       <div className="song-actions">
         {!isActive && (
           <button
@@ -170,11 +213,7 @@ function BenchSong({ song, character, isActive, dispatch }: BenchProps) {
             Call it written
           </button>
         ) : (
-          <button
-            type="button"
-            className="song-btn is-go"
-            onClick={() => dispatch({ type: 'releaseSong', songId: song.id })}
-          >
+          <button type="button" className="song-btn is-go" onClick={() => onRelease(song.id)}>
             Put it out
           </button>
         )}
@@ -187,5 +226,58 @@ function BenchSong({ song, character, isActive, dispatch }: BenchProps) {
         </button>
       </div>
     </li>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Putting it out — the channel choice (§4/§7)                                */
+/* -------------------------------------------------------------------------- */
+
+interface ReleaseProps {
+  song: Song
+  /** Signed acts release through the label (Phase E). */
+  signed: boolean
+  onRelease: (channel: ReleaseChannel) => void
+  onCancel: () => void
+}
+
+function ReleaseForm({ song, signed, onRelease, onCancel }: ReleaseProps) {
+  return (
+    <div className="song-form">
+      <h3 className="song-form-title">Putting out “{song.title}”</h3>
+      <p className="step-lede">
+        How it goes out decides who hears it — and what it costs you. This can’t be undone.
+      </p>
+
+      {signed && (
+        <p className="leaning-read">
+          Your label handles the release now. Their machine gets it heard; their cut comes out of
+          what it earns.
+        </p>
+      )}
+
+      <div className="release-choices">
+        <button type="button" className="release-choice" onClick={() => onRelease('streaming')}>
+          <span className="release-choice-name">Put it up yourself</span>
+          <span className="release-choice-desc">
+            Streaming, quietly. It finds people slowly and it stays yours — the scene still counts
+            it. Costs you nothing but the wait.
+          </span>
+        </button>
+        <button type="button" className="release-choice" onClick={() => onRelease('creator')}>
+          <span className="release-choice-name">Push it on the feeds</span>
+          <span className="release-choice-desc">
+            YouTube, TikTok, all of it. Far more people, far faster, and a better shot at catching —
+            but making the content costs money, and the scene rates it less.
+          </span>
+        </button>
+      </div>
+
+      <div className="song-form-actions">
+        <button type="button" className="btn btn-ghost btn-block" onClick={onCancel}>
+          Not yet
+        </button>
+      </div>
+    </div>
   )
 }

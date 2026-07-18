@@ -26,6 +26,7 @@ import {
   newSong,
   productionCeiling,
   sessionGain,
+  type ReleaseChannel,
   type Song,
 } from './songs.ts'
 import { rollTrajectory, weeklyEarning } from './release.ts'
@@ -56,12 +57,17 @@ import {
 import { NIGHTLY_RECOVERY } from './week.ts'
 import { VENUES, canPlay, venueById, type Venue } from './venues.ts'
 import {
+  COVER_ID,
   CROWD_MAX,
   GIG_EVENTS,
+  allowsCovers,
+  canFillSet,
   choicesFor,
   handlingFit,
+  isCover,
   newGig,
   personaBreak,
+  playCover,
   playSong,
   playableSongs,
   settleGig,
@@ -89,7 +95,20 @@ import {
   startingInventory,
   type Item,
 } from './items.ts'
-import { buyGear, gearById, gearRecordingBonus } from './gear.ts'
+import { buyGear, gearById, gearRecordingBonus, ownsRecordingGear } from './gear.ts'
+import {
+  LABEL_INTEREST_THRESHOLD,
+  applyRoyalties,
+  deliverUnderDeal,
+  isFulfilled,
+  makeLabelOffer,
+  signCredCost,
+  signOffer,
+  tickPatience,
+  wouldDrop,
+  type LabelDeal,
+  type LabelOffer,
+} from './label.ts'
 import {
   STARTING_STRAIN,
   WEEKLY_STRAIN_DECAY,
@@ -145,6 +164,10 @@ import { ageForWeek, evaluateEnding, forcedRetirement, rebrandCost, type Ending 
 export const COST_OF_LIVING = 200
 export const STARTING_MONEY = 400
 export const STARTING_MOOD = 60
+
+/** The up-front price of a creator push (§4) — content costs, and it reads populist. */
+export const CREATOR_PUSH_CRED_COST = 0.03
+export const CREATOR_PUSH_MONEY_COST = 20
 
 /**
  * A gig on the calendar (§9), which is what §5 means by a scheduled commitment
@@ -267,6 +290,12 @@ export interface LoopState {
   readonly demand: Demand | null
   /** Things the band did this week, for the summary. */
   readonly bandNews: readonly string[]
+  /** §4: the label you're signed to, or null (independent). */
+  readonly label: LabelDeal | null
+  /** §4: a deal on the table waiting on a yes or no, or null. */
+  readonly labelOffer: LabelOffer | null
+  /** Label news this week (signed, recouped, dropped), for the summary. */
+  readonly labelNews: readonly string[]
   readonly rng: Rng
 }
 
@@ -339,6 +368,9 @@ export function initialLoopState(seed: number, originId?: OriginId): LoopState {
     nextMateId: 1,
     demand: null,
     bandNews: [],
+    label: null,
+    labelOffer: null,
+    labelNews: [],
     rng: makeRng(seed),
   }
 }
@@ -371,15 +403,28 @@ export type LoopAction =
   | { type: 'finishWeek' }
   | { type: 'nextWeek' }
   // §7
-  | { type: 'startSong'; title: string; genreId: string; themes: readonly string[] }
+  | {
+      type: 'startSong'
+      title: string
+      genreId: string
+      themes: readonly string[]
+      tempo: number
+      feel: number
+    }
   | { type: 'setActiveSong'; songId: number }
   | { type: 'callItWritten'; songId: number }
-  | { type: 'releaseSong'; songId: number }
+  | { type: 'releaseSong'; songId: number; channel: ReleaseChannel }
   | { type: 'abandonSong'; songId: number }
+  // §4 — labels
+  | { type: 'signLabel' }
+  | { type: 'declineLabel' }
+  | { type: 'leaveLabel' }
   // §9
   | { type: 'bookGig'; venueId: string; dayIndex: number }
   | { type: 'cancelBooking' }
   | { type: 'toggleSetlistSong'; songId: number }
+  | { type: 'addCover' }
+  | { type: 'removeFromSet'; index: number }
   | { type: 'startPerformance' }
   | { type: 'playNextSong'; character: Character }
   | { type: 'gigChoose'; choiceId: string }
@@ -499,6 +544,7 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
           const prodCeiling = productionCeiling(
             action.character,
             gearRecordingBonus(state.inventory),
+            ownsRecordingGear(state.inventory),
           )
           return {
             ...s,
@@ -621,11 +667,26 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       )
 
       // §6: a band shares the money. Songs written in the band are the band's.
+      // §4: a record out under a label pays through the deal first — the label
+      // takes its cut and the advance eats your royalties until it's recouped, so
+      // a "signed and successful" week can still put £0 in your pocket. The deal
+      // is threaded through the catalogue because the recoup balance falls as each
+      // song pays.
       const bandShare = shareCount(state)
-      const myCatalog = state.songs.reduce(
-        (sum, s) => sum + Math.round(weeklyEarning(s) / (s.writtenWithBand ? bandShare : 1)),
-        0,
-      )
+      let dealDuringWeek = state.label
+      let myCatalog = 0
+      for (const s of state.songs) {
+        const gross = weeklyEarning(s)
+        if (gross <= 0) continue
+        let take = gross
+        if (s.underLabel && dealDuringWeek) {
+          const routed = applyRoyalties(dealDuringWeek, gross)
+          dealDuringWeek = routed.deal
+          take = routed.paidToArtist
+        }
+        if (s.writtenWithBand) take = take / bandShare
+        myCatalog += Math.round(take)
+      }
 
       // §8 — the weekly pass over the people. They act on their own.
       const after = runBandWeek(state, rngHere)
@@ -710,6 +771,45 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         if (noms.length > 0) awardsNext = { year, nominations: noms, campaign: null, results: null }
       }
 
+      // §4: settle the deal for the week. The advance may have just earned back;
+      // the label's patience ticks down between records, and a label still owed
+      // records that has run out of patience drops you — you keep the advance,
+      // but it costs standing and mood, and you're independent again.
+      const labelNews = [...state.labelNews]
+      let labelFinal = dealDuringWeek
+      let labelCredHit = 0
+      let labelMoodHit = 0
+      if (dealDuringWeek) {
+        if (state.label && state.label.recoupBalance > 0 && dealDuringWeek.recoupBalance <= 0) {
+          labelNews.push('The advance is earned back. Your royalties reach you now.')
+        }
+        const ticked = tickPatience(dealDuringWeek)
+        if (wouldDrop(ticked)) {
+          labelNews.push(`${ticked.labelName} dropped you. You keep the advance; you keep nothing else.`)
+          labelFinal = null
+          labelCredHit = 0.08
+          labelMoodHit = 12
+        } else {
+          labelFinal = ticked
+        }
+      }
+
+      // §4: label interest builds with reach. Independent (or with a deal already
+      // fulfilled) and known enough, a fresh offer can land after the summary.
+      let labelOfferNext = state.labelOffer
+      const canBeCourted = (labelFinal === null || isFulfilled(labelFinal)) && !state.labelOffer
+      if (canBeCourted && followingTotal >= LABEL_INTEREST_THRESHOLD) {
+        const roll = next(sfRng)
+        sfRng = roll.rng
+        const chance = clamp((followingTotal - LABEL_INTEREST_THRESHOLD) / 6000, 0.04, 0.4)
+        if (roll.value < chance) {
+          const made = makeLabelOffer(followingTotal, clamp(state.cred + credGain, 0, 1), sfRng)
+          labelOfferNext = made.offer
+          sfRng = made.rng
+          labelNews.push(`${made.offer.labelName} want to talk. There's an offer on the table.`)
+        }
+      }
+
       return {
         ...after.state,
         songs: aged,
@@ -723,13 +823,16 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         lastMerchRevenue: merchRevenue,
         lastDeadStock: deadStock,
         following: followingTotal,
-        cred: clamp(state.cred + credGain + merchCred, 0, 1),
-        mood: clamp(state.mood + chainWk.moodDelta, 0, 100),
+        cred: clamp(state.cred + credGain + merchCred - labelCredHit, 0, 1),
+        mood: clamp(state.mood + chainWk.moodDelta - labelMoodHit, 0, 100),
         strain: strainNext,
         chain: chainNext,
         superfans: driftedFans,
         fanNews,
         awards: awardsNext,
+        label: labelFinal,
+        labelOffer: labelOfferNext,
+        labelNews,
         lastFollowingGain:
           amplifiedFollowingGain +
           fanFollowing +
@@ -776,6 +879,8 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         attentionUsed: 0,
         superfans: state.superfans.map((f) => ({ ...f, tendedThisWeek: false })),
         fanNews: [],
+        // §4: label news was read in the summary — start the new week clean.
+        labelNews: [],
       }
     }
 
@@ -788,7 +893,14 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       // the start — a song begun alone stays yours even if you join next week.
       const withBand = !!state.band && state.band.members.length > 0
       const song = {
-        ...newSong(state.nextSongId, action.title, action.genreId, action.themes),
+        ...newSong(
+          state.nextSongId,
+          action.title,
+          action.genreId,
+          action.themes,
+          action.tempo,
+          action.feel,
+        ),
         writtenWithBand: withBand,
       }
       return {
@@ -822,12 +934,17 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       const song = songById(state, action.songId)
       if (!song || song.phase !== 'recording') return state
 
-      const rolled = rollTrajectory(song, state.rng)
+      // The channel (§4/§7) is fixed the moment it goes out — it decides the
+      // song's reach, its standing, and its odds of catching, so the trajectory
+      // is rolled AFTER it's set.
+      const channel: ReleaseChannel = action.channel
+      const released: Song = { ...song, channel }
+      const rolled = rollTrajectory(released, state.rng)
 
       // §4: "any move that reads as selling out risks a backlash event." Only a
       // mainstream release, and only if you had standing to trade — a pop record
       // from someone with no Cred betrays nobody.
-      const back = rollBacklash(song, state.cred, rolled.rng)
+      const back = rollBacklash(released, state.cred, rolled.rng)
 
       // §14: your people move a backlash. Ride-or-dies defend you, softening the
       // Cred hit; critics you let curdle pile on and sharpen it.
@@ -836,13 +953,32 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         ? BACKLASH_CRED_COST * clamp(1 - swing, 0.25, 1.75)
         : 0
 
+      // §4: a creator push costs standing and a little money to make the content
+      // up front — the price of the reach it buys, paid whether or not it catches.
+      const pushCredCost = channel === 'creator' ? CREATOR_PUSH_CRED_COST : 0
+      const pushMoneyCost = channel === 'creator' ? CREATOR_PUSH_MONEY_COST : 0
+
+      // §4: signed? This record goes out through the label — it reaches further,
+      // it counts against what you owe them, and its money runs through the deal.
+      const underLabel = state.label !== null
+      const labelAfter = state.label ? deliverUnderDeal(state.label) : null
+      const labelNews =
+        labelAfter && isFulfilled(labelAfter) && !isFulfilled(state.label!)
+          ? [...state.labelNews, `That's the last record you owed ${labelAfter.labelName}. The deal is fulfilled.`]
+          : state.labelNews
+
       return {
         ...state,
         rng: back.rng,
+        money: state.money - pushMoneyCost,
+        label: labelAfter,
+        labelNews,
         songs: state.songs.map((s) =>
           s.id === song.id
             ? {
                 ...s,
+                channel,
+                underLabel,
                 phase: 'released',
                 releasedWeek: state.week,
                 weeksOut: 0,
@@ -850,7 +986,7 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
               }
             : s,
         ),
-        cred: back.backlash ? clamp(state.cred - backlashCost, 0, 1) : state.cred,
+        cred: clamp(state.cred - backlashCost - pushCredCost, 0, 1),
         lastBacklash: back.backlash ? [...state.lastBacklash, song.title] : state.lastBacklash,
         // It's out; it can't be worked on any more.
         activeSongId: state.activeSongId === song.id ? null : state.activeSongId,
@@ -865,6 +1001,47 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         ...state,
         songs: state.songs.filter((s) => s.id !== song.id),
         activeSongId: state.activeSongId === song.id ? null : state.activeSongId,
+      }
+    }
+
+    /* ---- §4 Labels --------------------------------------------------- */
+
+    case 'signLabel': {
+      // A re-sign is allowed (an old deal that's fulfilled gets replaced); a live
+      // deal with records still owed is not — you can't sign two at once.
+      if (!state.labelOffer) return state
+      if (state.label && !isFulfilled(state.label)) return state
+      const deal = signOffer(state.labelOffer)
+      // The advance lands now (§12) — real money against the rent — and signing
+      // reads as selling in, so it costs a little standing (§4).
+      return {
+        ...state,
+        label: deal,
+        labelOffer: null,
+        money: state.money + deal.advance,
+        cred: clamp(state.cred - signCredCost(state.cred), 0, 1),
+        labelNews: [
+          ...state.labelNews,
+          `You signed to ${deal.labelName}. £${deal.advance} in the bank, and a run of records to make.`,
+        ],
+      }
+    }
+
+    case 'declineLabel': {
+      if (!state.labelOffer) return state
+      return { ...state, labelOffer: null }
+    }
+
+    case 'leaveLabel': {
+      // Walking away is only clean once you've delivered what you owed.
+      if (!state.label || !isFulfilled(state.label)) return state
+      return {
+        ...state,
+        label: null,
+        labelNews: [
+          ...state.labelNews,
+          `You and ${state.label.labelName} are done. You're independent again.`,
+        ],
       }
     }
 
@@ -1204,7 +1381,9 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       if (state.phase !== 'planning') return state
       const venue = VENUES.find((v) => v.id === action.venueId)
       if (!venue || !canPlay(venue, state.following, state.cred)) return state
-      if (playableSongs(state.songs).length === 0) return state
+      // §9/#5: you need enough to fill the room — at a cover room a single
+      // original will do, anywhere else you need a song for every slot.
+      if (!canFillSet(venue, playableSongs(state.songs).length)) return state
       return { ...state, booking: { venueId: venue.id, dayIndex: action.dayIndex } }
     }
 
@@ -1230,9 +1409,32 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       }
     }
 
+    case 'addCover': {
+      const gig = state.gig
+      if (!gig || gig.stage !== 'setlist') return state
+      const venue = venueById(gig.venueId)
+      if (!allowsCovers(venue) || gig.setlist.length >= venue.slots) return state
+      // Covers stack, so they can't be toggled by id — each is just another
+      // COVER_ID slot, removed by position (see removeFromSet).
+      return { ...state, gig: { ...gig, setlist: [...gig.setlist, COVER_ID] } }
+    }
+
+    case 'removeFromSet': {
+      const gig = state.gig
+      if (!gig || gig.stage !== 'setlist') return state
+      if (action.index < 0 || action.index >= gig.setlist.length) return state
+      return {
+        ...state,
+        gig: { ...gig, setlist: gig.setlist.filter((_, i) => i !== action.index) },
+      }
+    }
+
     case 'startPerformance': {
       const gig = state.gig
-      if (!gig || gig.stage !== 'setlist' || gig.setlist.length === 0) return state
+      if (!gig || gig.stage !== 'setlist') return state
+      const venue = venueById(gig.venueId)
+      // #5: no thin sets — every slot is filled, with your songs or with covers.
+      if (gig.setlist.length < venue.slots) return state
       return { ...state, gig: { ...gig, stage: 'performing', awaitingSong: true } }
     }
 
@@ -1240,18 +1442,24 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       const gig = state.gig
       if (!gig || gig.stage !== 'performing' || !gig.awaitingSong) return state
       const songId = gig.setlist[gig.played]
-      const song = songById(state, songId ?? -1)
-      if (!song) return state
+      if (songId === undefined) return state
+      // A cover is a sentinel, not a catalogue song — it plays its own way.
+      const song = isCover(songId) ? null : songById(state, songId)
+      // A real song id that resolves to nothing is a corrupt set — bail.
+      if (song === undefined) return state
 
-      const { outcome, rng } = playSong(
-        song,
-        gig.crowd,
-        gig.fatigue,
-        action.character,
-        state.energy,
-        state.mood,
-        state.rng,
-      )
+      const { outcome, rng } =
+        song === null
+          ? playCover(gig.crowd, gig.fatigue, action.character, state.energy, state.mood, state.rng)
+          : playSong(
+              song,
+              gig.crowd,
+              gig.fatigue,
+              action.character,
+              state.energy,
+              state.mood,
+              state.rng,
+            )
       const played = gig.played + 1
       const curve = [...gig.curve, outcome.crowd]
       const beats: GigBeat[] = [
@@ -1328,7 +1536,11 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       const gig = state.gig
       if (!gig || gig.stage !== 'result') return state
       const venue = venueById(gig.venueId)
-      const settled = settleGig(venue, gig.curve, 0, state.rng)
+      // Covers hold a room but earn no standing — only your own songs count
+      // toward the Cred a night is worth (see settleGig).
+      const originals = gig.setlist.filter((id) => !isCover(id)).length
+      const originalFraction = gig.setlist.length > 0 ? originals / gig.setlist.length : 1
+      const settled = settleGig(venue, gig.curve, 0, state.rng, originalFraction)
       const rng = settled.rng
       // §6: the band splits the door.
       const result: GigResult = {

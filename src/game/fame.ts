@@ -28,6 +28,7 @@
 import { clamp } from './traits.ts'
 import { next, type Rng } from './rng.ts'
 import { attention } from './release.ts'
+import { LABEL_REACH_MULT } from './label.ts'
 import { genreOf, songQuality, type Song } from './songs.ts'
 
 /** 0..1, hidden forever. */
@@ -57,14 +58,33 @@ export const followingFromCreatorDay = (dayQuality: number): number =>
   Math.round(4 + 26 * dayQuality)
 
 /**
+ * How much the release channel (§4/§7) amplifies weekly reach. Pushing a song on
+ * the creator platforms reaches far more people than a quiet self-release — the
+ * populist lever, paid for in Cred below.
+ */
+export const CHANNEL_REACH_MULT: Readonly<Record<Song['channel'], number>> = {
+  streaming: 1,
+  creator: 1.7,
+}
+
+/** The Cred a channel earns, as a fraction of the underground rate. */
+export const CHANNEL_CRED_MULT: Readonly<Record<Song['channel'], number>> = {
+  streaming: 1,
+  creator: 0.25,
+}
+
+/**
  * A released song's reach this week. Mainstream music reaches further — that's
  * the whole populist case, and it's why the axis authored at creation decides
- * more than taste.
+ * more than taste. The channel it went out on multiplies that reach again.
  */
 export function followingFromRelease(song: Song): number {
   if (song.phase !== 'released') return 0
   const a = attention(song.weeksOut, song.trajectory)
-  return Math.round(a * songQuality(song) * 45 * (0.4 + 0.6 * mainstreamness(song)))
+  const reach = a * songQuality(song) * 45 * (0.4 + 0.6 * mainstreamness(song))
+  // A label's machine reaches far more people (§4) — on top of the channel.
+  const labelMult = song.underLabel ? LABEL_REACH_MULT : 1
+  return Math.round(reach * CHANNEL_REACH_MULT[song.channel] * labelMult)
 }
 
 /* -------------------------------------------------------------------------- */
@@ -90,7 +110,9 @@ export function credFromRelease(song: Song): number {
   if (song.phase !== 'released') return 0
   const a = attention(song.weeksOut, song.trajectory)
   const underground = 1 - mainstreamness(song)
-  return a * songQuality(song) * 0.06 * underground
+  // Chasing reach on the creator platforms earns a fraction of the standing a
+  // quiet release would — the other half of §4's fork.
+  return a * songQuality(song) * 0.06 * underground * CHANNEL_CRED_MULT[song.channel]
 }
 
 /* -------------------------------------------------------------------------- */

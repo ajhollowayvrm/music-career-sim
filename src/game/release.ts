@@ -70,11 +70,18 @@ export function rollTrajectory(song: Song, rng: Rng): { trajectory: Trajectory; 
   const q = songQuality(song)
   const r = next(rng)
 
-  const viralChance = 0.02 + q * 0.05 // 2%..7%
-  const sleeperChance = 0.1 + q * 0.08 // 10%..18%
+  // §7's levers tilt the odds without ever guaranteeing anything. Upbeat, heated
+  // songs catch fast — the stuff that spikes; slow, tender ones don't spike but
+  // are the classic slow burn. Quality is still the main driver.
+  const upbeat = (song.tempo + song.feel) / 2 // 0..1
+  // §4: a creator push is built to catch — it buys extra chance at a spike.
+  const pushed = song.channel === 'creator' ? 0.03 : 0
+  const viralChance = 0.02 + q * 0.05 + (upbeat - 0.5) * 0.04 + pushed // ~0..12%
+  const sleeperChance = 0.1 + q * 0.08 + (0.5 - upbeat) * 0.08 // ~6..22%
 
-  if (r.value < viralChance) return { trajectory: 'viral', rng: r.rng }
-  if (r.value < viralChance + sleeperChance) return { trajectory: 'sleeper', rng: r.rng }
+  if (r.value < Math.max(0, viralChance)) return { trajectory: 'viral', rng: r.rng }
+  if (r.value < Math.max(0, viralChance) + Math.max(0, sleeperChance))
+    return { trajectory: 'sleeper', rng: r.rng }
   return { trajectory: 'normal', rng: r.rng }
 }
 

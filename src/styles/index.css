@@ -900,6 +900,40 @@ a {
   text-wrap: pretty;
 }
 
+/* ---------- Song soul levers (§7) ---------- */
+.soul-levers {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.soul-lever {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.soul-ends {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+}
+
+.soul-range {
+  width: 100%;
+  accent-color: var(--accent);
+  min-height: var(--tap);
+}
+
+.song-soul {
+  font-style: italic;
+  color: var(--text-dim);
+}
+
 /* ---------- Confirm ---------- */
 
 .portrait {
@@ -1536,6 +1570,17 @@ a {
   font-variant-numeric: tabular-nums;
 }
 
+.song-warn {
+  margin-top: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  border-left: 2px solid var(--accent-dim);
+  background: var(--bg-raised);
+  border-radius: 0 0.4rem 0.4rem 0;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  text-wrap: pretty;
+}
+
 .song-earnings strong {
   color: var(--text);
 }
@@ -1593,6 +1638,110 @@ a {
 
 .song-form .field-label {
   margin-top: 1.25rem;
+}
+
+/* Release channels (§4/§7) — two doors, each with its cost spelled out. */
+.release-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.release-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  text-align: left;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: var(--bg-raised);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.release-choice:active {
+  transform: scale(0.99);
+}
+
+@media (hover: hover) {
+  .release-choice:hover {
+    border-color: var(--accent);
+  }
+}
+
+.release-choice-name {
+  font-weight: 600;
+}
+
+.release-choice-desc {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  text-wrap: pretty;
+}
+
+/* ---------- Labels (§4) ---------- */
+.label-line {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--text);
+  text-wrap: pretty;
+}
+
+.label-fine {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.label-warn {
+  margin-top: 0.6rem;
+  padding: 0.55rem 0.75rem;
+  border-left: 2px solid var(--accent);
+  background: var(--bg-raised);
+  border-radius: 0 0.4rem 0.4rem 0;
+  font-size: 0.86rem;
+  color: var(--text);
+  text-wrap: pretty;
+}
+
+.label-quiet {
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  font-style: italic;
+  text-wrap: pretty;
+}
+
+.label-deal {
+  margin-top: 0.5rem;
+}
+
+.label-leave {
+  margin-top: 1.25rem;
+}
+
+.label-offer {
+  margin-top: 0.5rem;
+  padding: 1rem;
+  border: 1px solid var(--accent-dim);
+  border-radius: 0.7rem;
+  background: var(--bg-raised);
+}
+
+.label-offer-name {
+  font-size: 1.2rem;
+  letter-spacing: -0.01em;
+  margin: 0.2rem 0 0.5rem;
+}
+
+.label-offer-actions {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 1rem;
 }
 
 /* ============================================================
@@ -2630,6 +2779,17 @@ a {
 .setlist-tag.is-loud {
   color: var(--accent);
   border-color: var(--accent-dim);
+}
+
+/* A cover — filler, marked as not yours. */
+.setlist-tag.is-cover {
+  font-style: italic;
+  opacity: 0.75;
+}
+
+.genre.is-cover-add {
+  border-style: dashed;
+  font-style: italic;
 }
 
 .setlist-drop {

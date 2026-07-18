@@ -1,5 +1,5 @@
 import { VENUES, canPlay, whyLocked } from '../../game/venues.ts'
-import { playableSongs } from '../../game/gig.ts'
+import { allowsCovers, canFillSet, playableSongs } from '../../game/gig.ts'
 import { DAYS } from '../../game/week.ts'
 import { formatFollowing } from '../../game/fame.ts'
 import type { LoopAction, LoopState } from '../../game/loop.ts'
@@ -17,7 +17,8 @@ interface Props {
  * room you can't get into yet is more motivating than a room you can't see.
  */
 export default function GigsPanel({ state, dispatch }: Props) {
-  const canGig = playableSongs(state.songs).length > 0
+  const originalCount = playableSongs(state.songs).length
+  const hasSomething = originalCount > 0
   const booked = state.booking
 
   return (
@@ -30,7 +31,7 @@ export default function GigsPanel({ state, dispatch }: Props) {
         </p>
       </div>
 
-      {!canGig && (
+      {!hasSomething && (
         <p className="board-warn">
           You have nothing to play. Finish writing something first — nobody books an act with no
           songs.
@@ -58,6 +59,7 @@ export default function GigsPanel({ state, dispatch }: Props) {
           const open = canPlay(venue, state.following, state.cred)
           const locked = whyLocked(venue, state.following, state.cred)
           const isBooked = booked?.venueId === venue.id
+          const canFill = canFillSet(venue, originalCount)
 
           return (
             <li key={venue.id} className={`venue${open ? '' : ' is-locked'}${isBooked ? ' is-booked' : ''}`}>
@@ -76,19 +78,33 @@ export default function GigsPanel({ state, dispatch }: Props) {
                   </span>
                 </p>
               ) : (
-                <div className="venue-days">
-                  {DAYS.map((day, i) => (
-                    <button
-                      key={day}
-                      type="button"
-                      className={`venue-day${isBooked && booked?.dayIndex === i ? ' is-on' : ''}`}
-                      disabled={!canGig}
-                      onClick={() => dispatch({ type: 'bookGig', venueId: venue.id, dayIndex: i })}
-                    >
-                      {day}
-                    </button>
-                  ))}
-                </div>
+                <>
+                  <div className="venue-days">
+                    {DAYS.map((day, i) => (
+                      <button
+                        key={day}
+                        type="button"
+                        className={`venue-day${isBooked && booked?.dayIndex === i ? ' is-on' : ''}`}
+                        disabled={!canFill}
+                        onClick={() => dispatch({ type: 'bookGig', venueId: venue.id, dayIndex: i })}
+                      >
+                        {day}
+                      </button>
+                    ))}
+                  </div>
+                  {hasSomething && !canFill && (
+                    <p className="venue-needs">
+                      {allowsCovers(venue)
+                        ? 'You need at least one of your own songs to fill this with covers.'
+                        : `${venue.slots} of your own songs to fill this room — nobody headlines on covers.`}
+                    </p>
+                  )}
+                  {hasSomething && canFill && allowsCovers(venue) && originalCount < venue.slots && (
+                    <p className="venue-needs">
+                      You can fill the empty slots with covers on the night.
+                    </p>
+                  )}
+                </>
               )}
             </li>
           )

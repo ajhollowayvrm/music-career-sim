@@ -24,7 +24,7 @@ export default function EventCard({ event, onChoose }: Props) {
           <button
             key={choice.id}
             type="button"
-            className="btn btn-primary btn-grow"
+            className="btn btn-primary btn-block"
             onClick={() => onChoose(choice.id)}
           >
             {choice.label}

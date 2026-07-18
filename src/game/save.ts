@@ -26,14 +26,45 @@
 
 import type { Character } from './character.ts'
 import type { LoopState } from './loop.ts'
+import type { Song } from './songs.ts'
 
 const SAVE_KEY = 'ftbu:save'
-export const SAVE_VERSION = 1
+export const SAVE_VERSION = 2
 
 export interface SaveData {
   readonly version: number
   readonly character: Character
   readonly state: LoopState
+}
+
+/**
+ * Carry a v1 run forward. v2 added the song "soul" levers (tempo/feel), the
+ * release channel and label flag on songs, and the label subsystem on the run.
+ * Every new field has a safe default, so a v1 save just needs them backfilled
+ * rather than discarded — a playtest career shouldn't die to a feature update.
+ */
+function migrate(data: SaveData): SaveData | null {
+  if (data.version === SAVE_VERSION) return data
+  if (data.version === 1) {
+    const s = data.state as LoopState & { songs?: readonly Partial<Song>[] }
+    const songs = (s.songs ?? []).map((song) => ({
+      ...(song as Song),
+      tempo: song.tempo ?? 0.5,
+      feel: song.feel ?? 0.5,
+      channel: song.channel ?? ('streaming' as const),
+      underLabel: song.underLabel ?? false,
+    })) as readonly Song[]
+    const upgraded: LoopState = {
+      ...(data.state as LoopState),
+      songs,
+      label: (data.state as Partial<LoopState>).label ?? null,
+      labelOffer: (data.state as Partial<LoopState>).labelOffer ?? null,
+      labelNews: (data.state as Partial<LoopState>).labelNews ?? [],
+    }
+    return { version: SAVE_VERSION, character: data.character, state: upgraded }
+  }
+  // Older/unknown shapes are still discarded rather than force-fed.
+  return null
 }
 
 /** The one thing that decides a save is done — you don't resume a finished run. */
@@ -60,9 +91,11 @@ export function loadRun(): SaveData | null {
   try {
     const raw = localStorage.getItem(SAVE_KEY)
     if (!raw) return null
-    const data = JSON.parse(raw) as SaveData
-    // A save from an older shape is discarded, not force-fed to newer code.
-    if (data.version !== SAVE_VERSION || !data.character || !data.state) return null
+    const parsed = JSON.parse(raw) as SaveData
+    if (!parsed.character || !parsed.state) return null
+    // An older shape is carried forward where we can, discarded where we can't.
+    const data = migrate(parsed)
+    if (!data) return null
     if (isRunOver(data.state)) return null
     return data
   } catch {
@@ -94,9 +127,9 @@ export function exportSave(character: Character, state: LoopState): string {
 /** Parse an imported file back into a save, or null if it isn't one we can use. */
 export function importSave(text: string): SaveData | null {
   try {
-    const data = JSON.parse(text) as SaveData
-    if (data.version !== SAVE_VERSION || !data.character || !data.state) return null
-    return data
+    const parsed = JSON.parse(text) as SaveData
+    if (!parsed.character || !parsed.state) return null
+    return migrate(parsed)
   } catch {
     return null
   }

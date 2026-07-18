@@ -114,8 +114,83 @@ export function newGig(venue: Venue, dayIndex: number, following: number): GigSt
 export const playableSongs = (songs: readonly Song[]): readonly Song[] =>
   songs.filter((s) => s.phase !== 'writing')
 
-export const songIntensity = (song: Song): number =>
-  GENRES.find((g) => g.id === song.genreId)?.intensity ?? 0.5
+/**
+ * How loud and driving a song is live. Genre sets the base register, but the
+ * per-song levers (§7) are what make two songs of the same genre pace
+ * differently: a furious, fast take is a peak; a tender, slow one is a breather.
+ * That's the whole point of the levers reaching the stage — the order you set
+ * them in is a real decision because the songs themselves now differ.
+ */
+export const songIntensity = (song: Song): number => {
+  const genreIntensity = GENRES.find((g) => g.id === song.genreId)?.intensity ?? 0.5
+  return clamp(genreIntensity * 0.5 + song.feel * 0.35 + song.tempo * 0.15, 0, 1)
+}
+
+/* -------------------------------------------------------------------------- */
+/* Covers — §9's escape hatch for a thin catalogue                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A cover is not a song you own — it never enters the catalogue. In a setlist it
+ * is a sentinel: any negative id is "somebody else's song, played tonight". You
+ * cannot show up to an open mic with one original and call it a set; you fill the
+ * empty slots with covers, and the trade is that a cover earns you no standing —
+ * a room can love it, but nobody in the scene credits you for playing a song
+ * everyone already knows (§4: Cred is what you earn for what is yours).
+ */
+export const COVER_ID = -1
+export const isCover = (id: number): boolean => id < 0
+
+/**
+ * Where covers are allowed. The small rooms — the open mic, the back room — are
+ * where you're expected to pad a short set. Nobody plays a support slot or a
+ * headline show on other people's songs, so the bigger rooms want your material.
+ */
+export const allowsCovers = (venue: Venue): boolean =>
+  venue.id === 'open_mic' || venue.id === 'pub_back'
+
+/**
+ * Whether you have enough to fill this room's slots. At a cover room a single
+ * original is enough — covers make up the rest. Everywhere else you need real
+ * songs for every slot, which is its own soft gate on the bigger stages.
+ */
+export const canFillSet = (venue: Venue, originalCount: number): boolean =>
+  allowsCovers(venue) ? originalCount >= 1 : originalCount >= venue.slots
+
+/**
+ * Play a cover. A known song is an easy win — the room recognises it and warms a
+ * little without you spending much — but the ceiling is low and it clears no
+ * fatigue to speak of, because it is not the thing they came to feel. Capped on
+ * purpose: a set carried by covers can hold a room, never light it up.
+ */
+export function playCover(
+  crowd: number,
+  fatigue: number,
+  character: Character,
+  energy: number,
+  mood: number,
+  rng: Rng,
+): { outcome: SongOutcome; rng: Rng } {
+  // No song of your own, so performanceFactor's song term is neutral — a cover
+  // rides familiarity, not your writing.
+  const factor = clamp(
+    0.5 * (talent01(character, 'stagePresence') * 0.7 + talent01(character, 'voice') * 0.3) +
+      0.15 +
+      0.1 * (energy / 100) +
+      0.1 * (mood / 100),
+    0,
+    1,
+  )
+  const roll = nextRange(rng, -0.06, 0.06)
+  const held = clamp((factor - 0.4) * 12 + roll.value * 8, -6, 10)
+  const crowdNext = clamp(crowd + held - 1, 0, CROWD_MAX)
+  const fatigueNext = clamp(fatigue - 0.1, 0, 0.85)
+  const text =
+    held > 4
+      ? 'A cover. They know this one — some of them sing it back. None of it is yours.'
+      : 'A cover, to fill the set. It goes down fine. It is somebody else’s song.'
+  return { outcome: { crowd: crowdNext, fatigue: fatigueNext, text }, rng: roll.rng }
+}
 
 /* -------------------------------------------------------------------------- */
 /* The performer                                                              */
@@ -360,13 +435,16 @@ export function settleGig(
   curve: readonly number[],
   spent: number,
   rng: Rng,
+  /** Fraction of the set that was your own material. Covers earn no standing. */
+  originalFraction = 1,
 ): { result: GigResult; rng: Rng } {
   const score = scoreGig(curve)
   const roll = next(rng)
 
   // §4: this is Cred's main source. A blinding night in a small room is worth
-  // more standing than a flat one in a big one.
-  const credGain = venue.credWeight * score
+  // more standing than a flat one in a big one — but only your own songs count,
+  // so a set padded with covers earns proportionally less of it.
+  const credGain = venue.credWeight * score * originalFraction
 
   // Live reach is slower than the creator treadmill and costs no standing —
   // that's the whole point of it being the other road.

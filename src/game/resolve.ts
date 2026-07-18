@@ -21,7 +21,7 @@ import { nextRange, type Rng } from './rng.ts'
 import { clamp } from './traits.ts'
 import { BURNOUT_THRESHOLD, MAX_ENERGY, NIGHTLY_RECOVERY, REST_RECOVERY } from './week.ts'
 import { MAX_TALENT_AT_CREATION } from './talents.ts'
-import { songFit, type Song } from './songs.ts'
+import { feelResonance, songFit, type Song } from './songs.ts'
 import { CRED_PER_CREATOR_DAY, CRED_PER_NETWORK_DAY, followingFromCreatorDay } from './fame.ts'
 
 /** What a day paid. Money is thin on purpose — §12 owns the real economy. */
@@ -163,9 +163,22 @@ export function resolveDay(input: DayInput): { result: DayResult; rng: Rng } {
       ? (songFit(song, character) - 0.6) * 16
       : 0
 
+  // §3 + §7's levers: the song's SOUL pulls on your mood too, two ways.
+  //  · Temperament — a song whose feel matches where you naturally live pays a
+  //    little; one that fights your temperature costs (see feelResonance).
+  //  · Catharsis — when you're low, throwing yourself into something upbeat
+  //    lifts you; a slow one when you're already flat sinks you further. When
+  //    you're already up, something furious rides the high.
+  const soulMood =
+    song && routeId === 'make_music' && !startedBurntOut
+      ? (feelResonance(song, character) - 0.55) * 9 +
+        (mood < 45 ? (song.tempo - 0.5) * 10 : 0) +
+        (mood > 65 ? (song.feel - 0.5) * 6 : 0)
+      : 0
+
   const drift = (MOOD_BASELINE - mood) * MOOD_REVERSION
   const moodAfter = clamp(
-    mood + (MOOD_DELTA[routeId] ?? 0) + fitMood + drift + (startedBurntOut ? -8 : 0),
+    mood + (MOOD_DELTA[routeId] ?? 0) + fitMood + soulMood + drift + (startedBurntOut ? -8 : 0),
     0,
     100,
   )

@@ -114,6 +114,17 @@ export default function WeekSummary({ state, onNext }: Props) {
         </section>
       )}
 
+      {/* §4: a label signed you, recouped, dropped you, or came calling. */}
+      {state.labelNews.length > 0 && (
+        <section className="week-events">
+          {state.labelNews.map((line, i) => (
+            <p key={i} className="week-event">
+              {line}
+            </p>
+          ))}
+        </section>
+      )}
+
       {/* §13: a run closed with stock still in the box — money you fronted and
           won't get back. The other half of the gamble. */}
       {state.lastDeadStock > 0 && (

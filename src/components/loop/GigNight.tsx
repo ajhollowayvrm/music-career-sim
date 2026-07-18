@@ -2,7 +2,9 @@ import type { Character } from '../../game/character.ts'
 import {
   CROWD_MAX,
   GIG_EVENTS,
+  allowsCovers,
   choicesFor,
+  isCover,
   playableSongs,
   songIntensity,
 } from '../../game/gig.ts'
@@ -77,8 +79,10 @@ export default function GigNight({ state, character, dispatch }: Props) {
   )
 }
 
-const songTitle = (state: LoopState, id: number | undefined): string =>
-  state.songs.find((s) => s.id === id)?.title ?? 'the next one'
+const songTitle = (state: LoopState, id: number | undefined): string => {
+  if (id !== undefined && isCover(id)) return 'a cover'
+  return state.songs.find((s) => s.id === id)?.title ?? 'the next one'
+}
 
 /** A bar, never a number — you feel a room, you don't read it. */
 function CrowdMeter({ crowd }: { crowd: number }) {
@@ -105,6 +109,7 @@ function Setlist({ state, dispatch }: { state: LoopState; dispatch: (a: LoopActi
   const venue = venueById(gig.venueId)
   const available = playableSongs(state.songs)
   const full = gig.setlist.length >= venue.slots
+  const canCover = allowsCovers(venue)
 
   return (
     <div className="gig">
@@ -125,20 +130,22 @@ function Setlist({ state, dispatch }: { state: LoopState; dispatch: (a: LoopActi
       ) : (
         <ol className="setlist">
           {gig.setlist.map((id, i) => {
-            const song = state.songs.find((s) => s.id === id)!
-            const loud = songIntensity(song) >= 0.5
+            const song = isCover(id) ? null : state.songs.find((s) => s.id === id)
+            const loud = song ? songIntensity(song) >= 0.5 : false
             return (
-              <li key={id} className="setlist-item">
+              <li key={`${id}-${i}`} className="setlist-item">
                 <span className="setlist-n">{i + 1}</span>
-                <span className="setlist-title">{song.title}</span>
-                <span className={`setlist-tag${loud ? ' is-loud' : ' is-quiet'}`}>
-                  {loud ? 'loud' : 'quiet'}
+                <span className="setlist-title">{song ? song.title : 'A cover'}</span>
+                <span
+                  className={`setlist-tag${song ? (loud ? ' is-loud' : ' is-quiet') : ' is-cover'}`}
+                >
+                  {song ? (loud ? 'loud' : 'quiet') : 'cover'}
                 </span>
                 <button
                   type="button"
                   className="setlist-drop"
-                  aria-label={`Take ${song.title} out of the set`}
-                  onClick={() => dispatch({ type: 'toggleSetlistSong', songId: id })}
+                  aria-label={`Take ${song ? song.title : 'the cover'} out of the set`}
+                  onClick={() => dispatch({ type: 'removeFromSet', index: i })}
                 >
                   ×
                 </button>
@@ -169,19 +176,32 @@ function Setlist({ state, dispatch }: { state: LoopState; dispatch: (a: LoopActi
             </li>
           )
         })}
+        {canCover && (
+          <li>
+            <button
+              type="button"
+              className="genre is-cover-add"
+              disabled={full}
+              onClick={() => dispatch({ type: 'addCover' })}
+            >
+              + A cover
+            </button>
+          </li>
+        )}
       </ul>
       <p className="board-hint" aria-hidden="true">
         ▲ loud · ▽ quiet · tap to add — they play in the order you add them
+        {canCover && ' · covers fill the gaps but win you no cred'}
       </p>
 
       <div className="resolve-actions">
         <button
           type="button"
           className="btn btn-primary btn-grow"
-          disabled={gig.setlist.length === 0}
+          disabled={!full}
           onClick={() => dispatch({ type: 'startPerformance' })}
         >
-          {gig.setlist.length === 0 ? 'Pick a set' : 'Go on'}
+          {full ? 'Go on' : `Fill the set — ${gig.setlist.length}/${venue.slots}`}
         </button>
       </div>
     </div>

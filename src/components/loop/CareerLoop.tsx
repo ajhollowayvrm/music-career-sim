@@ -15,6 +15,7 @@ import BandPanel from './BandPanel.tsx'
 import ItemsPanel from './ItemsPanel.tsx'
 import MerchPanel from './MerchPanel.tsx'
 import FansPanel from './FansPanel.tsx'
+import LabelPanel from './LabelPanel.tsx'
 import AwardsNight from './AwardsNight.tsx'
 import CareerPanel from './CareerPanel.tsx'
 import RunEnd from './RunEnd.tsx'
@@ -28,7 +29,7 @@ interface Props {
   onQuit: () => void
 }
 
-type Tab = 'week' | 'songs' | 'gigs' | 'band' | 'things' | 'merch' | 'fans' | 'career'
+type Tab = 'week' | 'songs' | 'gigs' | 'band' | 'things' | 'merch' | 'fans' | 'label' | 'career'
 
 /** §5 The Daily Loop: plan a week, watch it happen a day at a time, settle up. */
 export default function CareerLoop({ character, seed, savedState, onQuit }: Props) {
@@ -188,6 +189,24 @@ export default function CareerLoop({ character, seed, savedState, onQuit }: Prop
               )}
             </button>
           )}
+          {/* Only worth a tab once a label is involved — an offer or a deal. */}
+          {(state.label || state.labelOffer) && (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'label'}
+              className={`tab${tab === 'label' ? ' is-active' : ''}`}
+              onClick={() => setTab('label')}
+            >
+              Label
+              {/* An offer waiting, or a fulfilled deal you could leave, is a
+                  decision that shouldn't be findable only by chance. */}
+              {(state.labelOffer ||
+                (state.label && state.label.songsOwed <= 0)) && (
+                <span className="tab-badge is-urgent">!</span>
+              )}
+            </button>
+          )}
           <button
             type="button"
             role="tab"
@@ -214,6 +233,7 @@ export default function CareerLoop({ character, seed, savedState, onQuit }: Prop
           <MerchPanel state={state} character={character} dispatch={dispatch} />
         )}
         {planning && tab === 'fans' && <FansPanel state={state} dispatch={dispatch} />}
+        {planning && tab === 'label' && <LabelPanel state={state} dispatch={dispatch} />}
         {planning && tab === 'career' && (
           <CareerPanel state={state} character={character} dispatch={dispatch} />
         )}
