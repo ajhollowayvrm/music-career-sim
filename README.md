@@ -48,12 +48,18 @@ That split is deliberate and load-bearing: §5's own example (skip the party and
 or go and pay for it with tomorrow's performance) only means anything at day granularity, and §16's
 events need somewhere to interrupt from. A pure weekly turn would delete both. Don't collapse it.
 
-Energy is what makes a plan a plan: roughly four action days a week is comfortable, five is
-break-even, six bleeds, seven collapses — so rest is a real move, not a forfeit. Money pulls the
-other way. Three shifts a week is the only solvent plan, and it's the one that grinds your mood
-down; mood then feeds back into how good your music is. **No plan is a free win**, and that trade is
-the loop. It falls out of the constants in `week.ts` and `resolve.ts` rather than being scripted,
-which is exactly why it's easy to break — see the check below.
+A day holds **up to two activities** (morning/afternoon), because a real day is a few things, not
+one — you can write in the morning and pick up a shift in the evening. But the day is still finite:
+each activity costs a fraction of its full price, and burnout is judged on the energy each activity
+*starts* with, so the tiring one is the second thing you piled on when you were already low. You
+still cannot do everything; you just get to divide the day.
+
+Energy is what makes a plan a plan: roughly **five or six activities a week is sustainable, seven
+bleeds, and two-a-day all week collapses** — so rest (an empty day) is a real move, not a forfeit.
+Money pulls the other way: shifts are the only solvent plan and the one that grinds your mood down,
+and mood feeds back into how good your music is. **No plan is a free win**, and that trade is the
+loop. It falls out of the constants in `week.ts` and `resolve.ts` (chiefly `SLOT_ENERGY_FACTOR`)
+rather than being scripted, which is exactly why it's easy to break — see the check below.
 
 ### Songs (§7)
 
@@ -76,6 +82,14 @@ rent; even a viral spike is about one week's rent. That's not a tuning miss — 
 rounding error, which is §12's whole tension. What a release actually buys is **reach and standing**
 (§4), weighted by where its genre sits on the underground↔mainstream axis. Gigs (§9) and merch (§13)
 are still owed. **Don't inflate the money to compensate.**
+
+**Singles, EPs, and albums.** A song can go out on its own as a single, or you can hold songs back
+and drop them together as a **body of work** (`project.ts`): two-to-five is an EP, six-plus an album.
+A project can compile anything you've made — unreleased songs *and* singles already out (a reissue
+puts them back in front of people). Bundling buys two things dribbled singles never do: a wave of
+**reach** up front (every song re-enters the world in the same week, and an album swings harder than
+an EP) and **Cred/prestige** (a real record reads as artistry, and an album is the statement). The
+cost is the tension — to drop a record you delay each song's income until it goes out together.
 
 ### Fame (§4): one number shown, one never
 

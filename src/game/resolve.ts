@@ -19,7 +19,7 @@ import type { Character } from './character.ts'
 import { routeById, type RouteId } from './routes.ts'
 import { nextRange, type Rng } from './rng.ts'
 import { clamp } from './traits.ts'
-import { BURNOUT_THRESHOLD, MAX_ENERGY, NIGHTLY_RECOVERY, REST_RECOVERY } from './week.ts'
+import { BURNOUT_THRESHOLD, MAX_ENERGY, slotEnergyCost } from './week.ts'
 import { MAX_TALENT_AT_CREATION } from './talents.ts'
 import { feelResonance, songFit, type Song } from './songs.ts'
 import { CRED_PER_CREATOR_DAY, CRED_PER_NETWORK_DAY, followingFromCreatorDay } from './fame.ts'
@@ -29,15 +29,33 @@ export const DAY_JOB_PAY = 85
 
 export type QualityBand = 'bad' | 'ok' | 'good'
 
-export interface DayResult {
-  readonly dayIndex: number
+/**
+ * One activity's outcome — the reader-facing half of a slot. A day now holds up
+ * to two of these (see DayResult.slots), because a real day is a few things, not
+ * one. What the player reads is per-activity; the numbers are aggregated onto the
+ * day.
+ */
+export interface SlotReport {
   readonly routeId: RouteId
   /**
    * Overrides the route's name in the log. A gig night (§9) is a day like any
    * other to the week, but it is not a route and calling it "Rest" is a lie.
    */
   readonly routeLabel?: string
-  /** Hidden. Never render this. */
+  readonly band: QualityBand
+  readonly burntOut: boolean
+  /** The two-part sentence the player actually reads. */
+  readonly report: string
+}
+
+export interface DayResult {
+  readonly dayIndex: number
+  /** What you actually did with the day — one or two activities, in order. */
+  readonly slots: readonly SlotReport[]
+  /** The first activity's route, kept for consumers that want one label. */
+  readonly routeId: RouteId
+  readonly routeLabel?: string
+  /** Hidden. Never render this. The day's mean across its activities. */
   readonly quality: number
   readonly band: QualityBand
   readonly energyAfter: number
@@ -47,9 +65,28 @@ export interface DayResult {
   readonly followingDelta: number
   /** §4. Never shown as a number. */
   readonly credDelta: number
+  /** True if ANY activity that day began in the red. */
   readonly burntOut: boolean
-  /** The two-part sentence the player actually reads. */
+  /** Every activity's report, joined — for the screen-reader line and back-compat. */
   readonly report: string
+}
+
+/** One activity's full result — reader-facing report plus the numbers it moved. */
+export interface SlotResult extends SlotReport {
+  readonly dayIndex: number
+  readonly slotIndex: number
+  /** Hidden. Never render this. */
+  readonly quality: number
+  readonly energySpent: number
+  /**
+   * Mood this activity moved, BEFORE the day's once-a-day homeostatic drift.
+   * The reducer sums these across the day's activities and applies drift once —
+   * drift is a property of the day, not of each thing you did in it.
+   */
+  readonly moodDeltaRaw: number
+  readonly moneyDelta: number
+  readonly followingDelta: number
+  readonly credDelta: number
 }
 
 const bandOf = (quality: number): QualityBand =>
@@ -97,22 +134,35 @@ const MOOD_DELTA: Readonly<Record<RouteId, number>> = {
 const MOOD_BASELINE = 50
 const MOOD_REVERSION = 0.06
 
-export interface DayInput {
+export interface SlotInput {
   readonly dayIndex: number
+  /** Which activity of the day this is (0 = first). Colours the burnout line. */
+  readonly slotIndex: number
   readonly routeId: RouteId
+  /** Energy at the START of this activity — burnout is judged on it. */
   readonly energy: number
+  /** Mood at the start of the DAY — homeostasis is applied once, by the reducer. */
   readonly mood: number
   readonly character: Character
-  /** The song a 'make_music' day works on, if there is one (§7). */
+  /** The song a 'make_music' activity works on, if there is one (§7). */
   readonly song?: Song | undefined
   readonly rng: Rng
 }
 
-export function resolveDay(input: DayInput): { result: DayResult; rng: Rng } {
-  const { dayIndex, routeId, energy, mood, character, song, rng } = input
-  const route = routeById(routeId)
+/**
+ * Resolve ONE activity. The day-level effects — homeostatic mood drift and the
+ * night's recovery — deliberately live in the reducer, not here, because they
+ * belong to the day and not to each thing you did in it. This returns the raw
+ * mood the activity moved and the energy it spent; the reducer threads energy
+ * across the day's activities and lands drift + recovery once at the end.
+ */
+export function resolveSlot(input: SlotInput): { result: SlotResult; rng: Rng } {
+  const { dayIndex, slotIndex, routeId, energy, mood, character, song, rng } = input
 
-  const startedBurntOut = energy < BURNOUT_THRESHOLD
+  // Rest is recovery, never ruin: resting on empty is the FIX for burnout, not an
+  // instance of it, so a rest slot is never "burnt". Must agree with week.ts's
+  // projection (an empty/rest day counts zero burnt activities) or the board lies.
+  const startedBurntOut = routeId !== 'rest' && energy < BURNOUT_THRESHOLD
 
   // --- What happened -------------------------------------------------------
   // The spread is deliberately wide enough that good and bad days actually
@@ -120,7 +170,9 @@ export function resolveDay(input: DayInput): { result: DayResult; rng: Rng } {
   // self-perception filter below — its interesting cases are the extremes.
   const roll = nextRange(rng, -0.18, 0.18)
 
-  // Energy gates the day hard. Running on empty is the loop's own stake.
+  // Energy gates the day hard. Running on empty is the loop's own stake — and now
+  // it is the SECOND activity, piled on when you were already low, that most often
+  // hits this, which is the whole point of letting a day hold two.
   const energyFactor = clamp(energy / MAX_ENERGY, 0, 1)
   const energyTerm = startedBurntOut ? -0.28 : (energyFactor - 0.6) * 0.25
 
@@ -140,8 +192,7 @@ export function resolveDay(input: DayInput): { result: DayResult; rng: Rng } {
   const band = bandOf(quality)
 
   // --- Cost ----------------------------------------------------------------
-  const recover = routeId === 'rest' ? REST_RECOVERY : 0
-  const energyAfter = clamp(energy - route.energy + recover + NIGHTLY_RECOVERY, 0, MAX_ENERGY)
+  const energySpent = slotEnergyCost(routeId)
 
   // §3: "Genre mismatch — your fixed leaning versus the music you're actually
   // making — lowers happiness." The first thing that makes the leanings authored
@@ -176,12 +227,9 @@ export function resolveDay(input: DayInput): { result: DayResult; rng: Rng } {
         (mood > 65 ? (song.feel - 0.5) * 6 : 0)
       : 0
 
-  const drift = (MOOD_BASELINE - mood) * MOOD_REVERSION
-  const moodAfter = clamp(
-    mood + (MOOD_DELTA[routeId] ?? 0) + fitMood + soulMood + drift + (startedBurntOut ? -8 : 0),
-    0,
-    100,
-  )
+  // The route's own mood move, plus fit/soul, plus the burnout tax. Homeostatic
+  // drift is NOT here — the reducer applies it once for the whole day.
+  const moodDeltaRaw = (MOOD_DELTA[routeId] ?? 0) + fitMood + soulMood + (startedBurntOut ? -8 : 0)
 
   const moneyDelta = routeId === 'day_job' ? DAY_JOB_PAY : 0
 
@@ -200,20 +248,32 @@ export function resolveDay(input: DayInput): { result: DayResult; rng: Rng } {
   return {
     result: {
       dayIndex,
+      slotIndex,
       routeId,
       quality,
       band,
-      energyAfter,
-      moodAfter,
+      energySpent,
+      moodDeltaRaw,
       moneyDelta,
       followingDelta,
       credDelta,
       burntOut: startedBurntOut,
-      report: buildReport(routeId, band, character, startedBurntOut, dayIndex, song, followingDelta),
+      report: buildReport(
+        routeId,
+        band,
+        character,
+        startedBurntOut,
+        dayIndex + slotIndex,
+        song,
+        followingDelta,
+      ),
     },
     rng: roll.rng,
   }
 }
+
+/** Homeostasis: mood pulls back toward its baseline once a day (see MOOD_BASELINE). */
+export const moodDrift = (mood: number): number => (MOOD_BASELINE - mood) * MOOD_REVERSION
 
 /* -------------------------------------------------------------------------- */
 /* What happened: objective. The same line regardless of who you are.          */
@@ -325,7 +385,8 @@ function buildReport(
   band: QualityBand,
   character: Character,
   burntOut: boolean,
-  dayIndex: number,
+  /** Varies the burnout line so a burnt stretch doesn't print one sentence over. */
+  lineSeed: number,
   song: Song | undefined,
   followingDelta: number,
 ): string {
@@ -345,7 +406,7 @@ function buildReport(
   }
 
   const tail = burntOut
-    ? BURNOUT_LINES[dayIndex % BURNOUT_LINES.length]
+    ? BURNOUT_LINES[lineSeed % BURNOUT_LINES.length]
     : selfRead(band, character.traits.confidence)
   return tail ? `${what} ${tail}` : what
 }

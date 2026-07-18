@@ -32,7 +32,7 @@
 import { finalizeCharacter } from '../src/game/character.ts'
 import { COST_OF_LIVING, initialLoopState, loopReducer, type LoopState } from '../src/game/loop.ts'
 import type { RouteId } from '../src/game/routes.ts'
-import { burnoutDays } from '../src/game/week.ts'
+import { countBurntSlots } from '../src/game/week.ts'
 
 // A middling musician: some talent, nothing exceptional.
 const character = finalizeCharacter({
@@ -59,12 +59,16 @@ const character = finalizeCharacter({
 const withSong = (state: LoopState): LoopState =>
   loopReducer(state, { type: 'startSong', title: 'Probe', genreId: 'punk', themes: [] })
 
-const playWeek = (state: LoopState, plan: (RouteId | null)[]): LoopState => {
+/** A day is now up to two activities; an empty list is a rest day (§5). */
+type DayPlan = RouteId[]
+
+const playWeek = (state: LoopState, plan: DayPlan[]): LoopState => {
   let s = state
   // Keep something on the bench so make_music days do real work.
   if (!s.songs.some((song) => song.phase !== 'released')) s = withSong(s)
-  plan.forEach((r, i) => {
-    s = loopReducer(s, { type: 'setDay', dayIndex: i, routeId: r })
+  plan.forEach((day, i) => {
+    s = loopReducer(s, { type: 'clearDay', dayIndex: i })
+    for (const r of day) s = loopReducer(s, { type: 'addActivity', dayIndex: i, routeId: r })
   })
   s = loopReducer(s, { type: 'playWeek' })
   for (let i = 0; i < 7; i++) {
@@ -85,15 +89,16 @@ const playWeek = (state: LoopState, plan: (RouteId | null)[]): LoopState => {
 
 const M: RouteId = 'make_music'
 const J: RouteId = 'day_job'
-const Z: RouteId = 'rest'
 
-const ARCHETYPES: Array<[string, (RouteId | null)[]]> = [
-  ['7 action days, all music', [M, M, M, M, M, M, M]],
-  ['6 action + 1 rest', [M, M, M, J, J, M, Z]],
-  ['5 action + 2 rest (music first)', [M, M, J, J, J, Z, Z]],
-  ['5 action + 2 rest (shifts first)', [J, J, J, M, M, Z, Z]],
-  ['4 action + 3 rest', [M, M, J, J, Z, Z, Z]],
-  ['nothing but rest', [Z, Z, Z, Z, Z, Z, Z]],
+// A day is a list of activities now. [] = rest, [M] = one thing, [M, J] = two.
+const ARCHETYPES: Array<[string, RouteId[][]]> = [
+  ['two-a-day all week (14 activities)', [[M, M], [M, M], [M, M], [M, M], [M, M], [M, M], [M, M]]],
+  ['two-a-day, 5 days + 2 rest (10)', [[M, M], [M, J], [J, J], [M, M], [M, J], [], []]],
+  ['one thing a day, no rest (7)', [[M], [M], [M], [M], [M], [M], [M]]],
+  ['one thing, 5 days + 2 rest (5)', [[M], [M], [J], [J], [J], [], []]],
+  ['light: 4 single days + 3 rest (4)', [[M], [M], [J], [J], [], [], []]],
+  ['solvent grind: 3 double-shift days (6)', [[J, J], [J, J], [J, J], [], [], [], []]],
+  ['nothing but rest', [[], [], [], [], [], [], []]],
 ]
 
 for (const [name, plan] of ARCHETYPES) {
@@ -136,13 +141,15 @@ for (const [name, plan] of ARCHETYPES) {
   // Three weeks, so this runs from varied starting energy and not just full.
   for (let w = 1; w <= 3; w++) {
     const startEnergy = s.energy
-    const predicted = burnoutDays(plan, startEnergy).length
+    // A single day can now burn twice, so the honest check is at the ACTIVITY
+    // level: what the board projects vs what the week actually burns.
+    const predicted = countBurntSlots(plan, startEnergy)
     s = playWeek(s, plan)
-    const actual = s.days.filter((d) => d.burntOut).length
+    const actual = s.days.reduce((n, d) => n + d.slots.filter((sl) => sl.burntOut).length, 0)
     const ok = predicted === actual
     if (!ok) failures++
     console.log(
-      `    ${ok ? 'ok  ' : 'FAIL'} ${name.padEnd(33)} w${w}` +
+      `    ${ok ? 'ok  ' : 'FAIL'} ${name.padEnd(38)} w${w}` +
         ` start ${String(Math.round(startEnergy)).padStart(3)}` +
         `  board says ${predicted}  week burns ${actual}`,
     )

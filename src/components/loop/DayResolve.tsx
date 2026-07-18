@@ -34,16 +34,21 @@ export default function DayResolve({ state, onNext, onFinish, onChoose }: Props)
 
       <ol className="day-log">
         {state.days.map((d) => {
-          const route = routeById(d.routeId)
           const isLatest = d.dayIndex === done - 1
+          // A day is now up to two activities — each gets its own line and its
+          // own read. Older/gig days carry a single slot, so this covers both.
           return (
             <li
               key={d.dayIndex}
               className={`log-entry${isLatest ? ' is-latest' : ''}${d.burntOut ? ' is-burnt' : ''}`}
             >
               <span className="log-day">{DAYS[d.dayIndex]}</span>
-              <span className="log-route">{d.routeLabel ?? route.short}</span>
-              <p className="log-report">{d.report}</p>
+              {d.slots.map((s, si) => (
+                <div key={si} className={`log-slot${s.burntOut ? ' is-burnt' : ''}`}>
+                  <span className="log-route">{s.routeLabel ?? routeById(s.routeId).short}</span>
+                  <p className="log-report">{s.report}</p>
+                </div>
+              ))}
             </li>
           )
         })}

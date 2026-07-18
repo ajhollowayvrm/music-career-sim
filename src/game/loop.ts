@@ -19,7 +19,7 @@
 
 import type { Character } from './character.ts'
 import { makeRng, next, nextRange, type Rng } from './rng.ts'
-import { resolveDay, type DayResult } from './resolve.ts'
+import { moodDrift, resolveSlot, type DayResult, type SlotReport } from './resolve.ts'
 import type { RouteId } from './routes.ts'
 import {
   compositionCeiling,
@@ -28,6 +28,7 @@ import {
   sessionGain,
   type ReleaseChannel,
   type Song,
+  type Trajectory,
 } from './songs.ts'
 import { rollTrajectory, weeklyEarning } from './release.ts'
 import {
@@ -36,6 +37,7 @@ import {
   STARTING_FOLLOWING,
   credFromRelease,
   followingFromRelease,
+  mainstreamness,
   rollBacklash,
 } from './fame.ts'
 import { clamp } from './traits.ts'
@@ -78,11 +80,24 @@ import {
 } from './gig.ts'
 import {
   DAYS_IN_WEEK,
+  MAX_ENERGY,
+  MAX_SLOTS_PER_DAY,
+  REST_RECOVERY,
   START_ENERGY,
   canPlayWeek,
   emptyPlan,
+  isRestDay,
   type WeekPlan,
 } from './week.ts'
+import {
+  averageQuality,
+  canBundle,
+  kindForCount,
+  projectCredBump,
+  projectFollowingBump,
+  type Project,
+  type ProjectKind,
+} from './project.ts'
 import { assessRent, isEvicted, type RentEvent } from './finances.ts'
 import type { OriginId } from './origins.ts'
 import {
@@ -269,6 +284,16 @@ export interface LoopState {
   readonly nextSongId: number
   /** What the catalog paid in the week just played. */
   readonly lastCatalogEarnings: number
+  /** §7: EP/albums you've put out — bundled bodies of work. */
+  readonly projects: readonly Project[]
+  /** Ids from a counter, not Date/random — state stays serializable. */
+  readonly nextProjectId: number
+  /** §7: the project dropped in the week just played, for the summary to speak. */
+  readonly lastProject: {
+    readonly title: string
+    readonly kind: ProjectKind
+    readonly songCount: number
+  } | null
   /** §4. Reach. Shown — the world counts it for you. */
   readonly following: number
   /** §4. Standing, 0..1. Never shown as a number. */
@@ -357,6 +382,9 @@ export function initialLoopState(seed: number, originId?: OriginId): LoopState {
     activeSongId: null,
     nextSongId: 1,
     lastCatalogEarnings: 0,
+    projects: [],
+    nextProjectId: 1,
+    lastProject: null,
     following: STARTING_FOLLOWING,
     cred: STARTING_CRED,
     lastFollowingGain: 0,
@@ -396,7 +424,14 @@ export const released = (state: LoopState): readonly Song[] =>
   state.songs.filter((s) => s.phase === 'released')
 
 export type LoopAction =
+  // Set a whole day to a single activity (or rest, with null). Replaces the day.
   | { type: 'setDay'; dayIndex: number; routeId: RouteId | null }
+  // Add one activity to a day's next free slot — the two-slot day's real editor.
+  // Duplicates are allowed: two music slots is a full day of writing, two shifts
+  // a double shift. A full day (MAX_SLOTS_PER_DAY) ignores the add.
+  | { type: 'addActivity'; dayIndex: number; routeId: RouteId }
+  | { type: 'removeSlot'; dayIndex: number; slotIndex: number }
+  | { type: 'clearDay'; dayIndex: number }
   | { type: 'clearPlan' }
   | { type: 'playWeek' }
   | { type: 'advanceDay'; character: Character }
@@ -415,6 +450,7 @@ export type LoopAction =
   | { type: 'callItWritten'; songId: number }
   | { type: 'releaseSong'; songId: number; channel: ReleaseChannel }
   | { type: 'abandonSong'; songId: number }
+  | { type: 'releaseProject'; title: string; songIds: readonly number[]; channel: ReleaseChannel }
   // §4 — labels
   | { type: 'signLabel' }
   | { type: 'declineLabel' }
@@ -471,8 +507,40 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       if (state.phase !== 'planning') return state
       if (action.dayIndex < 0 || action.dayIndex >= DAYS_IN_WEEK) return state
       const plan = [...state.plan]
-      // Tapping the route already there clears the day back to nothing.
-      plan[action.dayIndex] = plan[action.dayIndex] === action.routeId ? null : action.routeId
+      const day = plan[action.dayIndex] ?? []
+      // Setting a day to the single activity it already holds clears it to rest;
+      // otherwise the day becomes just that one activity.
+      const only = day.length === 1 && day[0] === action.routeId
+      plan[action.dayIndex] = action.routeId === null || only ? [] : [action.routeId]
+      return { ...state, plan }
+    }
+
+    case 'addActivity': {
+      if (state.phase !== 'planning') return state
+      if (action.dayIndex < 0 || action.dayIndex >= DAYS_IN_WEEK) return state
+      const plan = [...state.plan]
+      const day = plan[action.dayIndex] ?? []
+      // Room for it — it joins the day, in the order you added it (morning, then
+      // afternoon). Duplicates allowed. A full day ignores the add.
+      if (day.length < MAX_SLOTS_PER_DAY) plan[action.dayIndex] = [...day, action.routeId]
+      return { ...state, plan }
+    }
+
+    case 'removeSlot': {
+      if (state.phase !== 'planning') return state
+      if (action.dayIndex < 0 || action.dayIndex >= DAYS_IN_WEEK) return state
+      const plan = [...state.plan]
+      const day = plan[action.dayIndex] ?? []
+      if (action.slotIndex < 0 || action.slotIndex >= day.length) return state
+      plan[action.dayIndex] = day.filter((_, i) => i !== action.slotIndex)
+      return { ...state, plan }
+    }
+
+    case 'clearDay': {
+      if (state.phase !== 'planning') return state
+      if (action.dayIndex < 0 || action.dayIndex >= DAYS_IN_WEEK) return state
+      const plan = [...state.plan]
+      plan[action.dayIndex] = []
       return { ...state, plan }
     }
 
@@ -504,123 +572,186 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         }
       }
 
-      // An unplanned day is a rest day — §5: some days are nothing at all.
-      const routeId: RouteId = state.plan[dayIndex] ?? 'rest'
-      const song = activeSong(state)
+      // §5's two-slot day: a day is up to two activities, done in order, with the
+      // night's recovery landing once at the end. An empty day is a rest day.
+      const dayPlan = state.plan[dayIndex] ?? []
+      const slots: RouteId[] = dayPlan.length === 0 ? ['rest'] : [...dayPlan]
 
-      const { result, rng } = resolveDay({
-        dayIndex,
-        routeId,
-        energy: state.energy,
-        mood: state.mood,
-        character: action.character,
-        song,
-        rng: state.rng,
-      })
-
-      // A day of music moves the song on the bench (§7). Talent sets the
-      // ceiling; the day's quality decides how much of the remaining headroom
-      // this session closes.
+      const moodAtDayStart = state.mood
+      let energyRunning = state.energy
       let songs = state.songs
-      if (routeId === 'make_music' && song && song.phase !== 'released') {
-        songs = state.songs.map((s) => {
-          if (s.id !== song.id) return s
-          if (s.phase === 'writing') {
-            // §8's trap: with a band, the ceiling is the BAND's — which is above
-            // your solo ceiling when the chemistry is there and below it when it
-            // isn't. A bad band doesn't fail to help; it stifles you.
-            const ceiling =
-              state.band && state.band.members.length > 0
-                ? bandCompositionCeiling(action.character, state.band)
-                : compositionCeiling(action.character)
-            return {
-              ...s,
-              composition: s.composition + sessionGain(s.composition, ceiling, result.quality),
-              writingSessions: s.writingSessions + 1,
-            }
-          }
-          // §10: the recording ceiling reads the gear you own. Better rig, higher
-          // cap; sell the rig and the cap drops with it.
-          const prodCeiling = productionCeiling(
-            action.character,
-            gearRecordingBonus(state.inventory),
-            ownsRecordingGear(state.inventory),
-          )
-          return {
-            ...s,
-            production: s.production + sessionGain(s.production, prodCeiling, result.quality),
-            recordingSessions: s.recordingSessions + 1,
-          }
-        })
-      }
-
-      // §8 — what the day did to the people around you.
       let band = state.band
       let bandOffers = state.bandOffers
       let recruits = state.recruits
       let nextMateId = state.nextMateId
-      let rngAfter = rng
+      let rngRunning = state.rng
+      let strainRunning = state.strain
 
-      if (routeId === 'apply_bands' && !result.burntOut) {
+      let moodRaw = 0
+      let moneyDay = 0
+      let followingDay = 0
+      let credDay = 0
+      let qualitySum = 0
+      let anyBurnt = false
+      const slotReports: SlotReport[] = []
+
+      for (let slotIndex = 0; slotIndex < slots.length; slotIndex++) {
+        const routeId = slots[slotIndex]!
+        // Reflect any song progress an earlier activity in this same day made.
+        const song =
+          state.activeSongId === null ? undefined : songs.find((s) => s.id === state.activeSongId)
+
+        const { result, rng } = resolveSlot({
+          dayIndex,
+          slotIndex,
+          routeId,
+          // Energy at the START of this activity — the second one is judged on
+          // what the first left you, which is where the tiring days come from.
+          energy: energyRunning,
+          mood: moodAtDayStart,
+          character: action.character,
+          song,
+          rng: rngRunning,
+        })
+        rngRunning = rng
+        // No recovery between activities — the day is one stretch (see week.ts).
+        energyRunning = clamp(energyRunning - result.energySpent, 0, MAX_ENERGY)
+        moodRaw += result.moodDeltaRaw
+        moneyDay += result.moneyDelta
+        followingDay += result.followingDelta
+        credDay += result.credDelta
+        qualitySum += result.quality
+        anyBurnt = anyBurnt || result.burntOut
+        strainRunning = applyStrain(
+          strainRunning,
+          dailyStrainDelta(routeId, result.burntOut, moodAtDayStart),
+        )
+        slotReports.push({
+          routeId,
+          band: result.band,
+          burntOut: result.burntOut,
+          report: result.report,
+        })
+
+        // An activity of music moves the song on the bench (§7). Talent sets the
+        // ceiling; the activity's quality decides how much of the remaining
+        // headroom this session closes.
+        if (routeId === 'make_music' && song && song.phase !== 'released') {
+          songs = songs.map((s) => {
+            if (s.id !== song.id) return s
+            if (s.phase === 'writing') {
+              // §8's trap: with a band, the ceiling is the BAND's — above your
+              // solo ceiling when the chemistry is there, below it when it isn't.
+              const ceiling =
+                band && band.members.length > 0
+                  ? bandCompositionCeiling(action.character, band)
+                  : compositionCeiling(action.character)
+              return {
+                ...s,
+                composition: s.composition + sessionGain(s.composition, ceiling, result.quality),
+                writingSessions: s.writingSessions + 1,
+              }
+            }
+            // §10: the recording ceiling reads the gear you own. Better rig,
+            // higher cap; sell the rig and the cap drops with it.
+            const prodCeiling = productionCeiling(
+              action.character,
+              gearRecordingBonus(state.inventory),
+              ownsRecordingGear(state.inventory),
+            )
+            return {
+              ...s,
+              production: s.production + sessionGain(s.production, prodCeiling, result.quality),
+              recordingSessions: s.recordingSessions + 1,
+            }
+          })
+        }
+
         // §5's 'apply for bands' finally pays out. What turns up depends on
         // whether you have a room of your own: with a band you founded, people
         // answer YOUR ad; without one, you answer theirs.
-        const found = rollBandContacts(state, result.quality, rngAfter, nextMateId)
-        bandOffers = found.offers
-        recruits = found.recruits
-        nextMateId = found.nextMateId
-        rngAfter = found.rng
-      }
-
-      if (band && band.members.length > 0 && !result.burntOut) {
-        if (routeId === 'rehearse') {
-          // Turning up and doing the work buys trust and respect. It does not
-          // make anyone like you — that's the facets being independent (§8).
-          band = nudgeAll(band, {
-            professionalTrust: 0.05 + result.quality * 0.04,
-            musicalRespect: result.quality * 0.05,
-            friendship: 0.015,
-          })
+        if (routeId === 'apply_bands' && !result.burntOut) {
+          const found = rollBandContacts(
+            { ...state, band, bandOffers, recruits },
+            result.quality,
+            rngRunning,
+            nextMateId,
+          )
+          bandOffers = found.offers
+          recruits = found.recruits
+          nextMateId = found.nextMateId
+          rngRunning = found.rng
         }
-        if (routeId === 'make_music' && song) {
-          // §3's mismatch, from their side: writing music a member has no
-          // feeling for costs you their respect, however good it is.
-          const axes = genreOf(song).axes as unknown as Record<string, number>
-          for (const m of band.members) {
-            const fit = mateFit(m, axes)
-            band = nudgeOne(band, m.id, {
-              musicalRespect: (fit - 0.5) * 0.06,
-              friendship: (fit - 0.55) * 0.03,
+
+        // §8 — what the activity did to the people around you.
+        if (band && band.members.length > 0 && !result.burntOut) {
+          if (routeId === 'rehearse') {
+            // Turning up and doing the work buys trust and respect. It does not
+            // make anyone like you — that's the facets being independent (§8).
+            band = nudgeAll(band, {
+              professionalTrust: 0.05 + result.quality * 0.04,
+              musicalRespect: result.quality * 0.05,
+              friendship: 0.015,
             })
           }
-        }
-        if (routeId === 'day_job' || routeId === 'creator') {
-          // Days you spend being someone other than this band's member. They notice.
-          band = nudgeAll(band, { professionalTrust: -0.012 })
+          if (routeId === 'make_music' && song) {
+            // §3's mismatch, from their side: writing music a member has no
+            // feeling for costs you their respect, however good it is.
+            const axes = genreOf(song).axes as unknown as Record<string, number>
+            for (const m of band.members) {
+              const fit = mateFit(m, axes)
+              band = nudgeOne(band, m.id, {
+                musicalRespect: (fit - 0.5) * 0.06,
+                friendship: (fit - 0.55) * 0.03,
+              })
+            }
+          }
+          if (routeId === 'day_job' || routeId === 'creator') {
+            // Time spent being someone other than this band's member. They notice.
+            band = nudgeAll(band, { professionalTrust: -0.012 })
+          }
         }
       }
 
-      // §16: the day is done — hard living moves strain, and then the evening
-      // may bring something you didn't schedule. The chain takes priority over
-      // the one-offs; a fired event pauses the week until it's answered.
-      const followingNow = state.following + result.followingDelta
-      const strainAfter = applyStrain(
-        state.strain,
-        dailyStrainDelta(routeId, result.burntOut, state.mood),
-      )
+      // The day is done: homeostatic mood drift and the night's recovery land
+      // ONCE, for the whole day, not per activity (see resolve.ts / week.ts).
+      const drift = moodDrift(moodAtDayStart)
+      const moodAfter = clamp(moodAtDayStart + moodRaw + drift, 0, 100)
+      const restLike = isRestDay(dayPlan) ? REST_RECOVERY : 0
+      const energyAfter = clamp(energyRunning + restLike + NIGHTLY_RECOVERY, 0, MAX_ENERGY)
+      const meanQuality = qualitySum / slots.length
+
+      const dayResult: DayResult = {
+        dayIndex,
+        slots: slotReports,
+        routeId: slots[0]!,
+        quality: meanQuality,
+        band: meanQuality >= 0.66 ? 'good' : meanQuality >= 0.36 ? 'ok' : 'bad',
+        energyAfter,
+        moodAfter,
+        moneyDelta: moneyDay,
+        followingDelta: followingDay,
+        credDelta: credDay,
+        burntOut: anyBurnt,
+        report: slotReports.map((s) => s.report).join(' '),
+      }
+
+      // §16: the day is done — then the evening may bring something you didn't
+      // schedule. A fired event pauses the week until it's answered.
+      const followingNow = state.following + followingDay
       const ev = rollDailyEvent(
         {
-          strain: strainAfter,
+          strain: strainRunning,
           chain: state.chain,
-          mood: result.moodAfter,
-          energy: result.energyAfter,
+          mood: moodAfter,
+          energy: energyAfter,
           following: followingNow,
-          cred: clamp(state.cred + result.credDelta, 0, 1),
-          releasedSongs: released(state).length,
+          cred: clamp(state.cred + credDay, 0, 1),
+          releasedSongs: songs.filter((s) => s.phase === 'released').length,
           ownedGear: state.inventory.filter((i) => i.status.kind === 'owned'),
           week: state.week,
         },
-        rngAfter,
+        rngRunning,
       )
 
       // Resolving a day never ends the week. It used to, and that silently ate
@@ -630,18 +761,18 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       return {
         ...state,
         rng: ev.rng,
-        days: [...state.days, result],
+        days: [...state.days, dayResult],
         songs,
         band,
         bandOffers,
         recruits,
         nextMateId,
-        energy: result.energyAfter,
-        mood: result.moodAfter,
-        money: state.money + result.moneyDelta,
+        energy: energyAfter,
+        mood: moodAfter,
+        money: state.money + moneyDay,
         following: followingNow,
-        cred: clamp(state.cred + result.credDelta, 0, 1),
-        strain: strainAfter,
+        cred: clamp(state.cred + credDay, 0, 1),
+        strain: strainRunning,
         activeEvent: ev.event,
       }
     }
@@ -872,6 +1003,7 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         lastFollowingGain: 0,
         lastBacklash: [],
         lastGig: null,
+        lastProject: null,
         gig: null,
         // §16: this week's events have been read in the summary — start clean.
         eventLog: [],
@@ -990,6 +1122,113 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
         lastBacklash: back.backlash ? [...state.lastBacklash, song.title] : state.lastBacklash,
         // It's out; it can't be worked on any more.
         activeSongId: state.activeSongId === song.id ? null : state.activeSongId,
+      }
+    }
+
+    case 'releaseProject': {
+      if (state.phase !== 'planning') return state
+      // §7: compile a body of work. Anything you've made can go on it — songs
+      // still on the bench (recorded, unreleased) AND singles already out (a
+      // reissue puts them back in front of people).
+      const chosen = action.songIds
+        .map((id) => state.songs.find((s) => s.id === id))
+        .filter((s): s is Song => !!s && canBundle(s))
+      // Two-to-five is an EP; six and up is an album. Anything else isn't a project.
+      const kind = kindForCount(chosen.length)
+      if (!kind) return state
+
+      const channel: ReleaseChannel = action.channel
+      const title = action.title.trim() || (kind === 'album' ? 'Untitled Album' : 'Untitled EP')
+      const projectId = state.nextProjectId
+      const underLabel = state.label !== null
+      const chosenIds = new Set(chosen.map((s) => s.id))
+
+      // Roll a fresh trajectory for each song going out for the first time; a
+      // song already released keeps how it was behaving.
+      let rng = state.rng
+      const trajById = new Map<number, Trajectory>()
+      for (const s of chosen) {
+        if (s.phase === 'recording') {
+          const rolled = rollTrajectory({ ...s, channel, underLabel }, rng)
+          trajById.set(s.id, rolled.trajectory)
+          rng = rolled.rng
+        }
+      }
+
+      const songs = state.songs.map((s) => {
+        if (!chosenIds.has(s.id)) return s
+        // A reissue: back to week zero of attention, tagged to the project.
+        if (s.phase === 'released') return { ...s, weeksOut: 0, projectId }
+        // A song going out for the first time, as part of the record.
+        return {
+          ...s,
+          channel,
+          underLabel,
+          phase: 'released' as const,
+          releasedWeek: state.week,
+          weeksOut: 0,
+          trajectory: trajById.get(s.id) ?? s.trajectory,
+          projectId,
+        }
+      })
+
+      // §4: a body of work that reads as selling out still risks a backlash —
+      // rolled once, off the most mainstream thing on the record.
+      const mostMainstream = [...chosen].sort((a, b) => mainstreamness(b) - mainstreamness(a))[0]!
+      const back = rollBacklash(mostMainstream, state.cred, rng)
+      rng = back.rng
+      const swing = backlashSwing(state.superfans)
+      const backlashCost = back.backlash ? BACKLASH_CRED_COST * clamp(1 - swing, 0.25, 1.75) : 0
+
+      // §7: the payoff — a wave of reach up front, and the standing a real body
+      // of work earns that dribbled singles never do (album > EP).
+      const avgQ = averageQuality(chosen)
+      const followingBump = projectFollowingBump(kind, chosen.length, avgQ)
+      const credBump = projectCredBump(kind, avgQ)
+
+      // §4: a creator push makes the content up front — once, for the campaign.
+      const pushCredCost = channel === 'creator' ? CREATOR_PUSH_CRED_COST : 0
+      const pushMoneyCost = channel === 'creator' ? CREATOR_PUSH_MONEY_COST : 0
+
+      // §4: signed acts deliver the record on their deal (one record, however
+      // many songs are on it).
+      const hadUnreleased = chosen.some((s) => s.phase === 'recording')
+      const labelAfter = state.label && hadUnreleased ? deliverUnderDeal(state.label) : state.label
+      const labelNews =
+        state.label && labelAfter && isFulfilled(labelAfter) && !isFulfilled(state.label)
+          ? [
+              ...state.labelNews,
+              `That's the last record you owed ${labelAfter.labelName}. The deal is fulfilled.`,
+            ]
+          : state.labelNews
+
+      const project: Project = {
+        id: projectId,
+        title,
+        kind,
+        week: state.week,
+        channel,
+        songIds: chosen.map((s) => s.id),
+      }
+
+      return {
+        ...state,
+        rng,
+        songs,
+        projects: [...state.projects, project],
+        nextProjectId: state.nextProjectId + 1,
+        lastProject: { title, kind, songCount: chosen.length },
+        money: state.money - pushMoneyCost,
+        following: state.following + followingBump,
+        cred: clamp(state.cred + credBump - backlashCost - pushCredCost, 0, 1),
+        label: labelAfter,
+        labelNews,
+        lastBacklash: back.backlash ? [...state.lastBacklash, title] : state.lastBacklash,
+        // A song that just went out can't be worked on any more.
+        activeSongId:
+          state.activeSongId !== null && chosenIds.has(state.activeSongId)
+            ? null
+            : state.activeSongId,
       }
     }
 
@@ -1551,20 +1790,24 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       // The gig IS the day — it takes the energy any other day would.
       const energyAfter = clamp(state.energy - GIG_ENERGY + NIGHTLY_RECOVERY, 0, 100)
 
+      const band: DayResult['band'] =
+        result.score >= 0.66 ? 'good' : result.score >= 0.36 ? 'ok' : 'bad'
+      const report = `${venue.name}. ${result.read}`
       const dayResult: DayResult = {
         dayIndex: gig.dayIndex,
         // Not a route — a gig is its own thing. The label is what the log shows.
         routeId: 'rest',
         routeLabel: 'Gig',
+        slots: [{ routeId: 'rest', routeLabel: 'Gig', band, burntOut: false, report }],
         quality: result.score,
-        band: result.score >= 0.66 ? 'good' : result.score >= 0.36 ? 'ok' : 'bad',
+        band,
         energyAfter,
         moodAfter: clamp(state.mood + result.moodDelta, 0, 100),
         moneyDelta: result.money,
         followingDelta: result.followingGain,
         credDelta: result.credGain,
         burntOut: false,
-        report: `${venue.name}. ${result.read}`,
+        report,
       }
 
       return {

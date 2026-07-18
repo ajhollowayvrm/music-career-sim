@@ -92,6 +92,22 @@ export default function WeekSummary({ state, onNext }: Props) {
 
       <GigSummary state={state} />
 
+      {/* §7: you dropped a body of work this week — a real moment, not a dribbled
+          single. The reach and standing it bought are already in the numbers above. */}
+      {state.lastProject && (
+        <section className="standing">
+          <h3 className="confirm-title">
+            {state.lastProject.kind === 'album' ? 'The album is out' : 'The EP is out'}
+          </h3>
+          <p className="standing-cred">
+            <strong>{state.lastProject.title}</strong> — {state.lastProject.songCount} songs, out
+            together. {state.lastProject.kind === 'album'
+              ? 'A full-length reads as a statement. People who never gave you a second look have to now.'
+              : 'A short record, but a real one — more than the sum of the singles.'}
+          </p>
+        </section>
+      )}
+
       {/* §16: the things the week threw at you that weren't on the plan. */}
       {state.eventLog.length > 0 && (
         <section className="week-events">

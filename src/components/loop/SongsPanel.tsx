@@ -4,6 +4,13 @@ import { gearRecordingBonus, ownsRecordingGear } from '../../game/gear.ts'
 import { activeSong, released, workbench, type LoopAction, type LoopState } from '../../game/loop.ts'
 import { describeRelease } from '../../game/release.ts'
 import {
+  canBundle,
+  EP_MIN,
+  PROJECT_MAX,
+  kindForCount,
+  projectKindLabel,
+} from '../../game/project.ts'
+import {
   compositionCeiling,
   describeChannel,
   describeFeel,
@@ -34,11 +41,29 @@ interface Props {
 export default function SongsPanel({ state, character, dispatch }: Props) {
   const [starting, setStarting] = useState(false)
   const [releasingId, setReleasingId] = useState<number | null>(null)
+  const [buildingProject, setBuildingProject] = useState(false)
   const bench = workbench(state)
   const out = released(state)
   const active = activeSong(state)
   const gearBonus = gearRecordingBonus(state.inventory)
   const ownsGear = ownsRecordingGear(state.inventory)
+  // Anything recorded — on the bench and unreleased, or already out as a single —
+  // can be compiled into an EP or album (§7).
+  const bundleable = state.songs.filter(canBundle)
+
+  if (buildingProject) {
+    return (
+      <ProjectForm
+        songs={bundleable}
+        signed={state.label !== null}
+        onCancel={() => setBuildingProject(false)}
+        onRelease={(title, songIds, channel) => {
+          dispatch({ type: 'releaseProject', title, songIds, channel })
+          setBuildingProject(false)
+        }}
+      />
+    )
+  }
 
   if (starting) {
     return (
@@ -82,6 +107,17 @@ export default function SongsPanel({ state, character, dispatch }: Props) {
         Start a new song
       </button>
 
+      {/* §7: once you've made a few, put them out together as a body of work. */}
+      {bundleable.length >= EP_MIN && (
+        <button
+          type="button"
+          className="btn btn-ghost btn-block"
+          onClick={() => setBuildingProject(true)}
+        >
+          Put out an EP or album
+        </button>
+      )}
+
       {bench.length > 0 && (
         <>
           <h3 className="songs-head">On the bench</h3>
@@ -106,16 +142,27 @@ export default function SongsPanel({ state, character, dispatch }: Props) {
         <>
           <h3 className="songs-head">Out in the world</h3>
           <ul className="song-list">
-            {out.map((song) => (
-              <li key={song.id} className="song-card is-out">
-                <SongIdentity song={song} />
-                <p className="song-read">{describeRelease(song)}</p>
-                <p className="song-earnings">
-                  {describeChannel(song.channel)} · earned <strong>£{song.earnings}</strong> since
-                  week {song.releasedWeek}
-                </p>
-              </li>
-            ))}
+            {out.map((song) => {
+              const project =
+                song.projectId !== null
+                  ? state.projects.find((p) => p.id === song.projectId)
+                  : undefined
+              return (
+                <li key={song.id} className="song-card is-out">
+                  <SongIdentity song={song} />
+                  {project && (
+                    <p className="song-project">
+                      {projectKindLabel(project.kind)}: <em>{project.title}</em>
+                    </p>
+                  )}
+                  <p className="song-read">{describeRelease(song)}</p>
+                  <p className="song-earnings">
+                    {describeChannel(song.channel)} · earned <strong>£{song.earnings}</strong> since
+                    week {song.releasedWeek}
+                  </p>
+                </li>
+              )
+            })}
           </ul>
         </>
       )}
@@ -279,5 +326,152 @@ function ReleaseForm({ song, signed, onRelease, onCancel }: ReleaseProps) {
         </button>
       </div>
     </div>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Putting out a body of work — the EP/album builder (§7)                     */
+/* -------------------------------------------------------------------------- */
+
+interface ProjectProps {
+  /** Everything you could put on a record: unreleased songs and singles already out. */
+  songs: readonly Song[]
+  signed: boolean
+  onRelease: (title: string, songIds: readonly number[], channel: ReleaseChannel) => void
+  onCancel: () => void
+}
+
+function ProjectForm({ songs, signed, onRelease, onCancel }: ProjectProps) {
+  const [title, setTitle] = useState('')
+  const [picked, setPicked] = useState<readonly number[]>([])
+
+  const toggle = (id: number) =>
+    setPicked((p) =>
+      p.includes(id) ? p.filter((x) => x !== id) : p.length >= PROJECT_MAX ? p : [...p, id],
+    )
+
+  const kind = kindForCount(picked.length)
+  const bench = songs.filter((s) => s.phase !== 'released')
+  const out = songs.filter((s) => s.phase === 'released')
+
+  return (
+    <div className="song-form">
+      <h3 className="song-form-title">Put out a record</h3>
+      <p className="step-lede">
+        Collect your songs into an EP or an album and drop them together. A body of work reaches
+        further than the same songs dribbled out one by one — and it earns you the kind of standing a
+        single never will.
+      </p>
+
+      <label className="field">
+        <span className="field-label">What's it called?</span>
+        <input
+          className="input"
+          value={title}
+          maxLength={40}
+          placeholder={kind === 'album' ? 'Your album' : 'Your EP'}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+      </label>
+
+      <p className="project-count">
+        {picked.length < EP_MIN
+          ? `Pick at least ${EP_MIN}. Two to five is an EP; six or more is an album.`
+          : `${picked.length} songs — ${kind ? projectKindLabel(kind) : ''}.`}
+      </p>
+
+      {bench.length > 0 && (
+        <>
+          <h4 className="songs-head">Unreleased — these go out for the first time</h4>
+          <ul className="project-pick-list">
+            {bench.map((s) => (
+              <ProjectPick key={s.id} song={s} on={picked.includes(s.id)} onToggle={() => toggle(s.id)} />
+            ))}
+          </ul>
+        </>
+      )}
+
+      {out.length > 0 && (
+        <>
+          <h4 className="songs-head">Already out — putting these on it is a reissue</h4>
+          <ul className="project-pick-list">
+            {out.map((s) => (
+              <ProjectPick key={s.id} song={s} on={picked.includes(s.id)} onToggle={() => toggle(s.id)} />
+            ))}
+          </ul>
+        </>
+      )}
+
+      {signed ? (
+        <>
+          <p className="leaning-read">
+            Your label puts the record out. Their machine gets it heard; their cut comes out of what
+            it earns.
+          </p>
+          <button
+            type="button"
+            className="btn btn-primary btn-block"
+            disabled={!kind}
+            onClick={() => onRelease(title, picked, 'streaming')}
+          >
+            {kind ? `Release the ${projectKindLabel(kind).toLowerCase()}` : 'Pick more songs'}
+          </button>
+        </>
+      ) : (
+        <div className="release-choices">
+          <button
+            type="button"
+            className="release-choice"
+            disabled={!kind}
+            onClick={() => onRelease(title, picked, 'streaming')}
+          >
+            <span className="release-choice-name">Put it out yourself</span>
+            <span className="release-choice-desc">
+              Streaming. It finds people over time and it stays yours — the scene counts it.
+            </span>
+          </button>
+          <button
+            type="button"
+            className="release-choice"
+            disabled={!kind}
+            onClick={() => onRelease(title, picked, 'creator')}
+          >
+            <span className="release-choice-name">Push it on the feeds</span>
+            <span className="release-choice-desc">
+              Far more people, far faster — but the campaign costs money, and the scene rates it less.
+            </span>
+          </button>
+        </div>
+      )}
+
+      <div className="song-form-actions">
+        <button type="button" className="btn btn-ghost btn-block" onClick={onCancel}>
+          Not yet
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function ProjectPick({ song, on, onToggle }: { song: Song; on: boolean; onToggle: () => void }) {
+  return (
+    <li>
+      <button
+        type="button"
+        className={`project-pick${on ? ' is-on' : ''}`}
+        aria-pressed={on}
+        onClick={onToggle}
+      >
+        <span className="project-pick-check" aria-hidden="true">
+          {on ? '✓' : ''}
+        </span>
+        <span className="project-pick-body">
+          <span className="project-pick-title">{song.title}</span>
+          <span className="project-pick-meta">
+            {genreOf(song).label} · {describeTempo(song.tempo)}, {describeFeel(song.feel)}
+          </span>
+        </span>
+      </button>
+    </li>
   )
 }

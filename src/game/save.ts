@@ -26,10 +26,11 @@
 
 import type { Character } from './character.ts'
 import type { LoopState } from './loop.ts'
+import type { RouteId } from './routes.ts'
 import type { Song } from './songs.ts'
 
 const SAVE_KEY = 'ftbu:save'
-export const SAVE_VERSION = 2
+export const SAVE_VERSION = 3
 
 export interface SaveData {
   readonly version: number
@@ -38,33 +39,63 @@ export interface SaveData {
 }
 
 /**
- * Carry a v1 run forward. v2 added the song "soul" levers (tempo/feel), the
- * release channel and label flag on songs, and the label subsystem on the run.
- * Every new field has a safe default, so a v1 save just needs them backfilled
- * rather than discarded — a playtest career shouldn't die to a feature update.
+ * v1 → v2: the song "soul" levers (tempo/feel), the release channel and label
+ * flag on songs, and the label subsystem on the run.
+ */
+function v1tov2(data: SaveData): SaveData {
+  const s = data.state as LoopState & { songs?: readonly Partial<Song>[] }
+  const songs = (s.songs ?? []).map((song) => ({
+    ...(song as Song),
+    tempo: song.tempo ?? 0.5,
+    feel: song.feel ?? 0.5,
+    channel: song.channel ?? ('streaming' as const),
+    underLabel: song.underLabel ?? false,
+  })) as readonly Song[]
+  const upgraded: LoopState = {
+    ...(data.state as LoopState),
+    songs,
+    label: (data.state as Partial<LoopState>).label ?? null,
+    labelOffer: (data.state as Partial<LoopState>).labelOffer ?? null,
+    labelNews: (data.state as Partial<LoopState>).labelNews ?? [],
+  }
+  return { version: 2, character: data.character, state: upgraded }
+}
+
+/**
+ * v2 → v3: the two-slot day (a plan day is now a list of activities, not a
+ * single route or null) and projects/EPs/albums. An old single-route day becomes
+ * a one-activity day; a null day becomes an empty (rest) day. Every new run field
+ * has a safe default, so nobody's playtest career dies to the feature update.
+ */
+function v2tov3(data: SaveData): SaveData {
+  const old = data.state as unknown as { plan?: readonly (RouteId | null)[]; songs?: readonly Partial<Song>[] }
+  const plan = (old.plan ?? []).map((r) => (r ? [r] : [])) as unknown as LoopState['plan']
+  const songs = (old.songs ?? []).map((song) => ({
+    ...(song as Song),
+    projectId: (song as Partial<Song>).projectId ?? null,
+  })) as readonly Song[]
+  const upgraded: LoopState = {
+    ...(data.state as LoopState),
+    plan,
+    songs,
+    projects: (data.state as Partial<LoopState>).projects ?? [],
+    nextProjectId: (data.state as Partial<LoopState>).nextProjectId ?? 1,
+    lastProject: (data.state as Partial<LoopState>).lastProject ?? null,
+  }
+  return { version: 3, character: data.character, state: upgraded }
+}
+
+/**
+ * Carry an older run forward one version at a time. Every migration backfills
+ * safe defaults, so a save is upgraded rather than discarded — a playtest career
+ * shouldn't die to a feature update. A shape older than we understand is still
+ * discarded rather than force-fed.
  */
 function migrate(data: SaveData): SaveData | null {
-  if (data.version === SAVE_VERSION) return data
-  if (data.version === 1) {
-    const s = data.state as LoopState & { songs?: readonly Partial<Song>[] }
-    const songs = (s.songs ?? []).map((song) => ({
-      ...(song as Song),
-      tempo: song.tempo ?? 0.5,
-      feel: song.feel ?? 0.5,
-      channel: song.channel ?? ('streaming' as const),
-      underLabel: song.underLabel ?? false,
-    })) as readonly Song[]
-    const upgraded: LoopState = {
-      ...(data.state as LoopState),
-      songs,
-      label: (data.state as Partial<LoopState>).label ?? null,
-      labelOffer: (data.state as Partial<LoopState>).labelOffer ?? null,
-      labelNews: (data.state as Partial<LoopState>).labelNews ?? [],
-    }
-    return { version: SAVE_VERSION, character: data.character, state: upgraded }
-  }
-  // Older/unknown shapes are still discarded rather than force-fed.
-  return null
+  let current = data
+  if (current.version === 1) current = v1tov2(current)
+  if (current.version === 2) current = v2tov3(current)
+  return current.version === SAVE_VERSION ? current : null
 }
 
 /** The one thing that decides a save is done — you don't resume a finished run. */

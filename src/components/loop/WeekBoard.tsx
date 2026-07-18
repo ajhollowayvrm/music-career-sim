@@ -3,10 +3,12 @@ import { ACTION_ROUTES, routeById } from '../../game/routes.ts'
 import {
   BURNOUT_THRESHOLD,
   DAYS,
+  MAX_SLOTS_PER_DAY,
   burnoutDays,
   isBurntOut,
   plannedActionCount,
   projectEnergy,
+  slotEnergyCost,
 } from '../../game/week.ts'
 import { activeSong, formatMoney, type LoopAction, type LoopState } from '../../game/loop.ts'
 import { formatFollowing } from '../../game/fame.ts'
@@ -40,14 +42,15 @@ export default function WeekBoard({ state, dispatch }: Props) {
 
   const musicDaysWithNothingToWorkOn = activeSong(state)
     ? 0
-    : state.plan.filter((r) => r === 'make_music').length
+    : state.plan.filter((day) => day.includes('make_music')).length
 
   return (
     <div className="board">
       <div className="board-head">
         <h2 className="step-title">Week {state.week}</h2>
         <p className="step-lede">
-          Lay out your week. Empty days are rest — and rest is a move, not a wasted turn.
+          Lay out your week. A day holds up to two things — but a full day still tires you, so you
+          can't do everything. Empty days are rest, and rest is a move, not a wasted turn.
         </p>
         {/* §12: overdue rent is a clock the player has to plan around — pick up
             shifts, book a paying room, or sell something (§11). It stays on the
@@ -70,17 +73,23 @@ export default function WeekBoard({ state, dispatch }: Props) {
 
       <ol className="week">
         {DAYS.map((day, i) => {
-          const routeId = state.plan[i] ?? null
-          const route = routeId ? routeById(routeId) : null
+          const daySlots = state.plan[i] ?? []
           const energy = projection[i] ?? 0
-          // Flagged because you'll START this day with nothing — not because it
-          // happens to end low.
+          // Flagged because at least one activity that day starts with nothing —
+          // not because it happens to end low.
           const spent = doomed.has(i)
           const isOpen = openDay === i
+          const dayFull = daySlots.length >= MAX_SLOTS_PER_DAY
           // §9/§5: a booked gig owns its day. It shows here because the whole
           // point of a scheduled commitment is the tension it puts on the days
           // either side of it.
           const gigHere = state.booking?.dayIndex === i ? venueById(state.booking.venueId) : null
+
+          const label = gigHere
+            ? `♪ ${gigHere.name}`
+            : daySlots.length === 0
+              ? 'Rest'
+              : daySlots.map((r) => routeById(r).short).join(' + ')
 
           return (
             <li key={day} className={`day${spent ? ' is-spent' : ''}${gigHere ? ' is-gig' : ''}`}>
@@ -92,8 +101,8 @@ export default function WeekBoard({ state, dispatch }: Props) {
                 onClick={() => setOpenDay(isOpen ? null : i)}
               >
                 <span className="day-name">{day}</span>
-                <span className={`day-route${route || gigHere ? '' : ' is-empty'}`}>
-                  {gigHere ? `♪ ${gigHere.name}` : route ? route.short : 'Rest'}
+                <span className={`day-route${daySlots.length > 0 || gigHere ? '' : ' is-empty'}`}>
+                  {label}
                 </span>
                 <span className="day-energy" aria-hidden="true">
                   <span
@@ -105,33 +114,47 @@ export default function WeekBoard({ state, dispatch }: Props) {
 
               {isOpen && (
                 <div className="day-picker">
-                  {ACTION_ROUTES.map((r) => {
-                    const on = routeId === r.id
-                    return (
-                      <button
-                        key={r.id}
-                        type="button"
-                        className={`pick${on ? ' is-on' : ''}`}
-                        aria-pressed={on}
-                        onClick={() => {
-                          dispatch({ type: 'setDay', dayIndex: i, routeId: r.id })
-                          setOpenDay(null)
-                        }}
-                      >
-                        <span className="pick-label">{r.label}</span>
-                        <span className="pick-cost">{r.energy}</span>
-                      </button>
-                    )
-                  })}
+                  <p className="day-picker-hint">
+                    Up to two things a day — a second one costs you, so a full day still tires you.
+                  </p>
+                  {daySlots.length > 0 && (
+                    <div className="day-slots">
+                      {daySlots.map((r, si) => (
+                        <button
+                          key={si}
+                          type="button"
+                          className="day-slot-chip"
+                          onClick={() => dispatch({ type: 'removeSlot', dayIndex: i, slotIndex: si })}
+                        >
+                          {routeById(r).short}
+                          <span className="day-slot-x" aria-hidden="true">
+                            ×
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {ACTION_ROUTES.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      className="pick"
+                      disabled={dayFull}
+                      onClick={() => dispatch({ type: 'addActivity', dayIndex: i, routeId: r.id })}
+                    >
+                      <span className="pick-label">{r.label}</span>
+                      <span className="pick-cost">{slotEnergyCost(r.id)}</span>
+                    </button>
+                  ))}
                   <button
                     type="button"
-                    className={`pick pick-rest${routeId === null ? ' is-on' : ''}`}
+                    className={`pick pick-rest${daySlots.length === 0 ? ' is-on' : ''}`}
                     onClick={() => {
-                      dispatch({ type: 'setDay', dayIndex: i, routeId: null })
+                      dispatch({ type: 'clearDay', dayIndex: i })
                       setOpenDay(null)
                     }}
                   >
-                    <span className="pick-label">Rest — do nothing at all</span>
+                    <span className="pick-label">Rest — clear the day</span>
                   </button>
                 </div>
               )}
@@ -158,7 +181,7 @@ export default function WeekBoard({ state, dispatch }: Props) {
         <p className="board-note">
           {actions === 0
             ? 'A week of nothing. You will feel better, and the bills still come.'
-            : `${actions} ${actions === 1 ? 'day' : 'days'} of work. The rest is rest.`}
+            : `${actions} ${actions === 1 ? 'thing' : 'things'} on this week. Everything else is rest.`}
         </p>
       )}
 
