@@ -1272,6 +1272,18 @@ a {
   border-style: dashed;
 }
 
+/* Rest gives energy back rather than spending it — the number reads as a gain,
+   so it gets the positive colour instead of the accent the costs use. */
+.pick-recover {
+  color: #6f9e6a;
+}
+
+.pick-clear {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  justify-content: center;
+}
+
 .pick:disabled {
   opacity: 0.38;
   cursor: default;

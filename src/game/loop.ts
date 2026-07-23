@@ -82,11 +82,10 @@ import {
   DAYS_IN_WEEK,
   MAX_ENERGY,
   MAX_SLOTS_PER_DAY,
-  REST_RECOVERY,
   START_ENERGY,
   canPlayWeek,
+  dayRecovery,
   emptyPlan,
-  isRestDay,
   type WeekPlan,
 } from './week.ts'
 import {
@@ -717,7 +716,7 @@ export function loopReducer(state: LoopState, action: LoopAction): LoopState {
       // ONCE, for the whole day, not per activity (see resolve.ts / week.ts).
       const drift = moodDrift(moodAtDayStart)
       const moodAfter = clamp(moodAtDayStart + moodRaw + drift, 0, 100)
-      const restLike = isRestDay(dayPlan) ? REST_RECOVERY : 0
+      const restLike = dayRecovery(dayPlan)
       const energyAfter = clamp(energyRunning + restLike + NIGHTLY_RECOVERY, 0, MAX_ENERGY)
       const meanQuality = qualitySum / slots.length
 
