@@ -89,8 +89,10 @@ const playWeek = (state: LoopState, plan: DayPlan[]): LoopState => {
 
 const M: RouteId = 'make_music'
 const J: RouteId = 'day_job'
+const R: RouteId = 'rest'
 
 // A day is a list of activities now. [] = rest, [M] = one thing, [M, J] = two.
+// R is rest taken as a slot (§5): [J, R] is a shift in the morning, rest after.
 const ARCHETYPES: Array<[string, RouteId[][]]> = [
   ['two-a-day all week (14 activities)', [[M, M], [M, M], [M, M], [M, M], [M, M], [M, M], [M, M]]],
   ['two-a-day, 5 days + 2 rest (10)', [[M, M], [M, J], [J, J], [M, M], [M, J], [], []]],
@@ -98,6 +100,7 @@ const ARCHETYPES: Array<[string, RouteId[][]]> = [
   ['one thing, 5 days + 2 rest (5)', [[M], [M], [J], [J], [J], [], []]],
   ['light: 4 single days + 3 rest (4)', [[M], [M], [J], [J], [], [], []]],
   ['solvent grind: 3 double-shift days (6)', [[J, J], [J, J], [J, J], [], [], [], []]],
+  ['work then rest, every day (7 shifts)', [[J, R], [J, R], [J, R], [J, R], [J, R], [J, R], [J, R]]],
   ['nothing but rest', [[], [], [], [], [], [], []]],
 ]
 

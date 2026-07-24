@@ -13,8 +13,9 @@
  * and a second one on the same day spends into reserves you would rather keep.
  * The numbers below are tuned so roughly six or seven activities a week is
  * sustainable and cramming two-a-day all week walks you into burnout. You still
- * cannot do everything; you just get to divide the day. Rest — an empty day —
- * is therefore still a real move, exactly what §5 means by "some days are rest
+ * cannot do everything; you just get to divide the day. Rest is a real move at
+ * either grain — a whole empty day, or one of the day's two slots (work the
+ * morning, rest the afternoon) — exactly what §5 means by "some days are rest
  * or nothing at all".
  */
 
@@ -38,8 +39,17 @@ export const START_ENERGY = 100
  * comfortable at five action days has no plan in it at all.
  */
 export const NIGHTLY_RECOVERY = 5
-/** A day given over to doing nothing, on top of the nightly recovery. */
+/** A day given over entirely to nothing, on top of the nightly recovery. */
 export const REST_RECOVERY = 25
+
+/**
+ * Recovery a single rest activity buys — rest taken as one of the day's two
+ * slots, not the whole day (§5). Roughly half a full rest day, so "go to work,
+ * then rest" earns most of the shift's energy back without being a free full
+ * recovery. A day that is nothing BUT rest still earns the whole REST_RECOVERY,
+ * not the per-slot sum — see dayRecovery.
+ */
+export const SLOT_REST_RECOVERY = 13
 
 /**
  * Below this you're running on empty: days go badly and mood drops. This is the
@@ -80,9 +90,21 @@ export const emptyPlan = (): WeekPlan => DAYS.map(() => [])
 
 export const isBurntOut = (energy: number): boolean => energy < BURNOUT_THRESHOLD
 
-/** A day given over entirely to nothing — that's what earns the rest recovery. */
+/** A day given over entirely to nothing — that's what earns the full rest recovery. */
 export const isRestDay = (day: DayPlan): boolean =>
   day.length === 0 || day.every((r) => r === 'rest')
+
+/**
+ * Recovery a day earns from rest, landing once at day's end on top of the
+ * nightly recovery. A day given entirely to nothing — empty, or every slot rest
+ * — is the classic rest day and earns the full REST_RECOVERY. Rest taken as ONE
+ * of a two-slot day (work in the morning, rest in the afternoon) earns
+ * SLOT_REST_RECOVERY per rest slot instead: real recovery, but not a whole day's.
+ */
+export const dayRecovery = (day: DayPlan): number =>
+  isRestDay(day)
+    ? REST_RECOVERY
+    : day.filter((r) => r === 'rest').length * SLOT_REST_RECOVERY
 
 export interface DaySim {
   /** Energy at the start of each activity — what burnout is judged on. */
@@ -95,8 +117,8 @@ export interface DaySim {
 
 /**
  * One day, simulated. Activities spend in order with NO recovery between them —
- * the day is one stretch — and the night's recovery (plus the rest bonus, if the
- * day was empty) lands once, at the end. Burnout is judged on the energy each
+ * the day is one stretch — and the night's recovery (plus any rest bonus the day
+ * earned, whole-day or per-slot) lands once, at the end. Burnout is judged on the energy each
  * activity STARTS with, so the tiring one is the second thing you piled on when
  * you were already low, which is exactly the realism the two-slot day is for.
  */
@@ -110,7 +132,7 @@ export function simulateDay(startEnergy: number, day: DayPlan): DaySim {
     if (routeId !== 'rest' && isBurntOut(energy)) burntSlots++
     energy = clamp(energy - slotEnergyCost(routeId), 0, MAX_ENERGY)
   }
-  const restLike = isRestDay(day) ? REST_RECOVERY : 0
+  const restLike = dayRecovery(day)
   return { slotStarts, end: clamp(energy + restLike + NIGHTLY_RECOVERY, 0, MAX_ENERGY), burntSlots }
 }
 

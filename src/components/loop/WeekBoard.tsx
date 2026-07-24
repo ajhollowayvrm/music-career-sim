@@ -4,6 +4,7 @@ import {
   BURNOUT_THRESHOLD,
   DAYS,
   MAX_SLOTS_PER_DAY,
+  SLOT_REST_RECOVERY,
   burnoutDays,
   isBurntOut,
   plannedActionCount,
@@ -50,7 +51,8 @@ export default function WeekBoard({ state, dispatch }: Props) {
         <h2 className="step-title">Week {state.week}</h2>
         <p className="step-lede">
           Lay out your week. A day holds up to two things — but a full day still tires you, so you
-          can't do everything. Empty days are rest, and rest is a move, not a wasted turn.
+          can't do everything. Rest is one of those things: take the whole day, or work the morning
+          and rest the afternoon. Either way it's a move, not a wasted turn.
         </p>
         {/* §12: overdue rent is a clock the player has to plan around — pick up
             shifts, book a paying room, or sell something (§11). It stays on the
@@ -146,15 +148,27 @@ export default function WeekBoard({ state, dispatch }: Props) {
                       <span className="pick-cost">{slotEnergyCost(r.id)}</span>
                     </button>
                   ))}
+                  {/* §5: rest is a real activity, not only a whole empty day. Take
+                      it as one of the two slots to work the morning and rest the
+                      afternoon — the slot gives energy back instead of spending it. */}
                   <button
                     type="button"
-                    className={`pick pick-rest${daySlots.length === 0 ? ' is-on' : ''}`}
+                    className="pick pick-rest"
+                    disabled={dayFull}
+                    onClick={() => dispatch({ type: 'addActivity', dayIndex: i, routeId: 'rest' })}
+                  >
+                    <span className="pick-label">{routeById('rest').label}</span>
+                    <span className="pick-cost pick-recover">+{SLOT_REST_RECOVERY}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="pick pick-clear"
                     onClick={() => {
                       dispatch({ type: 'clearDay', dayIndex: i })
                       setOpenDay(null)
                     }}
                   >
-                    <span className="pick-label">Rest — clear the day</span>
+                    <span className="pick-label">Clear the day</span>
                   </button>
                 </div>
               )}
